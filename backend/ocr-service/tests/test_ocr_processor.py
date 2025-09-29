@@ -7,7 +7,7 @@ from pathlib import Path
 from PIL import Image
 import io
 
-from ocr_processor import OCRProcessor
+from src.ocr_processor import OCRProcessor
 
 
 @pytest.fixture

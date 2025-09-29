@@ -14,7 +14,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 import uvicorn
 
-from ocr_processor import OCRProcessor
+from .ocr_processor import OCRProcessor
 
 # Configure logging
 logging.basicConfig(
@@ -44,37 +44,56 @@ async def lifespan(app: FastAPI):
 # Create FastAPI app
 app = FastAPI(
     title="OCR Service",
-    description="Extract text from PDFs and images",
+    description="""
+    ## Production-ready OCR Service
+    
+    Extract text from PDFs and images using advanced OCR technology.
+    
+    ### Features:
+    - **Native PDF text extraction** for searchable PDFs (fast)
+    - **OCR processing** for scanned documents and images
+    - **Layout extraction** with bounding box coordinates
+    - **Async processing** for large files
+    - **Multiple file formats** support
+    
+    ### Supported Formats:
+    - **PDFs**: `.pdf` (both searchable and scanned)
+    - **Images**: `.png`, `.jpg`, `.jpeg`, `.tiff`, `.bmp`, `.gif`
+    
+    ### Processing Methods:
+    1. **Native PDF**: Fast text extraction from searchable PDFs
+    2. **OCR PDF**: Convert PDF to images and run OCR
+    3. **OCR Image**: Direct OCR on image files
+    
+    ### Performance Tips:
+    - Use native PDF extraction when possible (faster)
+    - Higher DPI = better quality but slower processing
+    - Async endpoint for files > 10MB
+    """,
     version="1.0.0",
-    lifespan=lifespan
+    lifespan=lifespan,
+    contact={
+        "name": "OCR Service Team",
+        "email": "support@example.com",
+    },
+    license_info={
+        "name": "MIT",
+        "url": "https://opensource.org/licenses/MIT",
+    },
+    servers=[
+        {
+            "url": "http://localhost:8000",
+            "description": "Development server"
+        },
+        {
+            "url": "https://api.example.com",
+            "description": "Production server"
+        }
+    ]
 )
 
 
-# Pydantic models for request/response
-class OCRResponse(BaseModel):
-    """Response model for OCR extraction."""
-    document_id: Optional[str] = Field(None, description="Document identifier")
-    text: str = Field(..., description="Extracted text content")
-    page_count: int = Field(..., description="Number of pages processed")
-    method: str = Field(..., description="Extraction method used")
-    confidence: Optional[float] = Field(None, description="OCR confidence score (0-100)")
-    processing_time_ms: float = Field(..., description="Processing time in milliseconds")
-    file_size_bytes: int = Field(..., description="Original file size")
-    filename: str = Field(..., description="Original filename")
-
-
-class HealthResponse(BaseModel):
-    """Health check response."""
-    status: str
-    service: str
-    version: str
-    tesseract_available: bool
-
-
-class ErrorResponse(BaseModel):
-    """Error response model."""
-    error: str
-    detail: Optional[str] = None
+from .models import OCRResponse, HealthResponse, ErrorResponse
 
 
 # API Endpoints
@@ -85,6 +104,11 @@ async def health_check():
     Health check endpoint.
     
     Returns service status and dependencies availability.
+    
+    **Returns:**
+    - Service status (healthy/degraded)
+    - Service information
+    - Tesseract OCR availability
     """
     try:
         import pytesseract
