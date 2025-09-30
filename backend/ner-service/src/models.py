@@ -21,7 +21,7 @@ class NERResponse(BaseModel):
     text: str = Field(..., description="Input text")
     entities: List[EntityInfo] = Field(..., description="Detected entities")
     entity_count: int = Field(..., description="Total number of entities found")
-    model_used: str = Field(..., description="Spacy model used for processing")
+    spacy_model_used: str = Field(..., description="Spacy model used for processing")
     processing_time_ms: float = Field(..., description="Processing time in milliseconds")
     text_length: int = Field(..., description="Length of input text")
 
@@ -45,6 +45,7 @@ class NERRequest(BaseModel):
     text: str = Field(..., description="Text to process", min_length=1, max_length=1000000)
     entity_types: Optional[List[str]] = Field(None, description="Specific entity types to extract")
     include_confidence: bool = Field(True, description="Include confidence scores")
+    language: str = Field("en", description="Language code (en, hr)", pattern="^(en|hr)$")
 
 
 class BatchNERRequest(BaseModel):
@@ -52,6 +53,7 @@ class BatchNERRequest(BaseModel):
     texts: List[str] = Field(..., description="List of texts to process", min_items=1, max_items=100)
     entity_types: Optional[List[str]] = Field(None, description="Specific entity types to extract")
     include_confidence: bool = Field(True, description="Include confidence scores")
+    language: str = Field("en", description="Language code (en, hr)", pattern="^(en|hr)$")
 
 
 class BatchNERResponse(BaseModel):

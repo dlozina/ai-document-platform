@@ -15,6 +15,7 @@ from pydantic import BaseModel, Field
 import uvicorn
 
 from .ocr_processor import OCRProcessor
+from .config import get_settings
 
 # Configure logging
 logging.basicConfig(
@@ -33,8 +34,13 @@ async def lifespan(app: FastAPI):
     global ocr_processor
     
     logger.info("Starting OCR Service...")
-    ocr_processor = OCRProcessor(dpi=300, language='eng')
-    logger.info("OCR Service ready")
+    settings = get_settings()
+    ocr_processor = OCRProcessor(
+        dpi=settings.ocr_dpi,
+        language=settings.tesseract_lang,
+        enable_language_detection=settings.enable_language_detection
+    )
+    logger.info(f"OCR Service ready with language: {settings.tesseract_lang}")
     
     yield
     

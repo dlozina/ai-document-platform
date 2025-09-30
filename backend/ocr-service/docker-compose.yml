@@ -19,17 +19,3 @@ services:
       timeout: 10s
       retries: 3
       start_period: 40s
-
-  # Optional: Redis for caching
-  redis:
-    image: redis:7-alpine
-    ports:
-      - "6379:6379"
-    volumes:
-      - redis_data:/data
-    restart: unless-stopped
-    profiles:
-      - caching
-
-volumes:
-  redis_data:

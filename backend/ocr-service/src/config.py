@@ -24,8 +24,9 @@ class Settings(BaseSettings):
     
     # OCR Settings
     tesseract_cmd: Optional[str] = None  # Auto-detect if None
-    tesseract_lang: str = "eng"
+    tesseract_lang: str = "eng+hrv"  # Support English and Croatian
     ocr_dpi: int = 300
+    enable_language_detection: bool = True  # Enable automatic language detection
     
     # File Processing Settings
     max_file_size_mb: int = 10

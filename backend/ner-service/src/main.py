@@ -33,10 +33,7 @@ async def lifespan(app: FastAPI):
     global ner_processor
     
     logger.info("Starting NER Service...")
-    ner_processor = NERProcessor(
-        model_name="en_core_web_sm",
-        fallback_model="en_core_web_lg"
-    )
+    ner_processor = NERProcessor()
     logger.info("NER Service ready")
     
     yield
@@ -50,15 +47,20 @@ app = FastAPI(
     description="""
     ## Production-ready Named Entity Recognition Service
     
-    Extract named entities from text using advanced NLP technology.
+    Extract named entities from text using advanced NLP technology with multi-language support.
     
     ### Features:
-    - **Multiple spaCy models** (small and large)
+    - **Multi-language support** (English, Croatian)
+    - **Multiple spaCy models** per language (small and large)
     - **Entity type filtering** for specific entity types
     - **Batch processing** for multiple texts
     - **Confidence scoring** for entity detection
     - **Entity visualization** with HTML output
     - **Async processing** for large texts
+    
+    ### Supported Languages:
+    - **English (en)**: en_core_web_sm, en_core_web_lg
+    - **Croatian (hr)**: hr_core_news_sm, hr_core_news_lg
     
     ### Supported Entity Types:
     - **PERSON**: People, including fictional
@@ -70,14 +72,16 @@ app = FastAPI(
     - **TIME**: Times smaller than a day
     - **LOC**: Non-GPE locations
     
-    ### Models:
-    1. **en_core_web_sm**: Small, fast model (default)
-    2. **en_core_web_lg**: Large, accurate model (fallback)
+    ### Language Selection:
+    - Specify language using the `language` parameter (default: "en")
+    - Supported codes: "en" for English, "hr" for Croatian
+    - Each language uses appropriate spaCy models for optimal accuracy
     
     ### Performance Tips:
-    - Use small model for speed, large model for accuracy
+    - Use small models for speed, large models for accuracy
     - Batch processing is more efficient for multiple texts
     - Filter entity types to reduce processing time
+    - Choose the correct language for better entity recognition
     """,
     version="1.0.0",
     lifespan=lifespan,
@@ -161,6 +165,7 @@ async def extract_entities(
     
     **Parameters:**
     - **text**: Text to process (required, max 1M characters)
+    - **language**: Language code - "en" for English, "hr" for Croatian (default: "en")
     - **entity_types**: Specific entity types to extract (optional)
     - **include_confidence**: Include confidence scores (default: true)
     - **X-Tenant-ID**: Tenant identifier (header)
@@ -168,7 +173,7 @@ async def extract_entities(
     
     **Returns:**
     - Detected entities with positions and types
-    - Processing metadata
+    - Processing metadata including language and model used
     """
     if not ner_processor:
         raise HTTPException(
@@ -177,14 +182,22 @@ async def extract_entities(
         )
     
     try:
+        # Validate language support
+        if not ner_processor.is_language_supported(request.language):
+            raise HTTPException(
+                status_code=400,
+                detail=f"Unsupported language: {request.language}. Supported languages: {ner_processor.get_supported_languages()}"
+            )
+        
         logger.info(
-            f"Processing text ({len(request.text)} chars) "
+            f"Processing {request.language} text ({len(request.text)} chars) "
             f"for tenant: {tenant_id}"
         )
         
         # Process the text
         result = ner_processor.process_text(
             text=request.text,
+            language=request.language,
             entity_types=request.entity_types,
             include_confidence=request.include_confidence
         )
@@ -221,13 +234,14 @@ async def extract_entities_batch(
     
     **Parameters:**
     - **texts**: List of texts to process (max 100 texts)
+    - **language**: Language code - "en" for English, "hr" for Croatian (default: "en")
     - **entity_types**: Specific entity types to extract (optional)
     - **include_confidence**: Include confidence scores (default: true)
     - **X-Tenant-ID**: Tenant identifier (header)
     
     **Returns:**
     - NER results for each text
-    - Batch processing statistics
+    - Batch processing statistics including language
     """
     if not ner_processor:
         raise HTTPException(
@@ -236,14 +250,22 @@ async def extract_entities_batch(
         )
     
     try:
+        # Validate language support
+        if not ner_processor.is_language_supported(request.language):
+            raise HTTPException(
+                status_code=400,
+                detail=f"Unsupported language: {request.language}. Supported languages: {ner_processor.get_supported_languages()}"
+            )
+        
         logger.info(
-            f"Processing batch of {len(request.texts)} texts "
+            f"Processing batch of {len(request.texts)} {request.language} texts "
             f"for tenant: {tenant_id}"
         )
         
         # Process the batch
         result = ner_processor.process_batch(
             texts=request.texts,
+            language=request.language,
             entity_types=request.entity_types,
             include_confidence=request.include_confidence,
             batch_size=100
@@ -281,6 +303,15 @@ async def extract_entities_async(
     
     Process the text in the background and optionally POST results to callback_url.
     
+    **Parameters:**
+    - **text**: Text to process
+    - **language**: Language code - "en" for English, "hr" for Croatian (default: "en")
+    - **entity_types**: Specific entity types to extract (optional)
+    - **include_confidence**: Include confidence scores (default: true)
+    - **callback_url**: Optional URL to POST results when complete
+    - **X-Tenant-ID**: Tenant identifier (header)
+    - **X-Document-ID**: Document identifier (header)
+    
     **Returns:**
     - Job ID for status tracking
     """
@@ -314,10 +345,16 @@ async def process_text_background(
 ):
     """Background task for async processing."""
     try:
-        logger.info(f"Background processing job {job_id}")
+        # Validate language support
+        if not ner_processor.is_language_supported(request.language):
+            logger.error(f"Unsupported language in background job {job_id}: {request.language}")
+            return
+        
+        logger.info(f"Background processing job {job_id} for {request.language} text")
         
         result = ner_processor.process_text(
             text=request.text,
+            language=request.language,
             entity_types=request.entity_types,
             include_confidence=request.include_confidence
         )
@@ -353,6 +390,7 @@ async def get_entity_statistics(
     
     **Parameters:**
     - **text**: Text to analyze
+    - **language**: Language code - "en" for English, "hr" for Croatian (default: "en")
     - **entity_types**: Specific entity types to analyze (optional)
     - **include_confidence**: Include confidence scores (default: true)
     - **X-Tenant-ID**: Tenant identifier (header)
@@ -368,9 +406,17 @@ async def get_entity_statistics(
         )
     
     try:
+        # Validate language support
+        if not ner_processor.is_language_supported(request.language):
+            raise HTTPException(
+                status_code=400,
+                detail=f"Unsupported language: {request.language}. Supported languages: {ner_processor.get_supported_languages()}"
+            )
+        
         # Process text to get entities
         result = ner_processor.process_text(
             text=request.text,
+            language=request.language,
             entity_types=request.entity_types,
             include_confidence=request.include_confidence
         )
@@ -398,6 +444,7 @@ async def visualize_entities(
     
     **Parameters:**
     - **text**: Text to visualize
+    - **language**: Language code - "en" for English, "hr" for Croatian (default: "en")
     - **entity_types**: Specific entity types to highlight (optional)
     - **include_confidence**: Include confidence scores (default: true)
     - **X-Tenant-ID**: Tenant identifier (header)
@@ -412,15 +459,23 @@ async def visualize_entities(
         )
     
     try:
+        # Validate language support
+        if not ner_processor.is_language_supported(request.language):
+            raise HTTPException(
+                status_code=400,
+                detail=f"Unsupported language: {request.language}. Supported languages: {ner_processor.get_supported_languages()}"
+            )
+        
         # Process text to get entities
         result = ner_processor.process_text(
             text=request.text,
+            language=request.language,
             entity_types=request.entity_types,
             include_confidence=request.include_confidence
         )
         
         # Generate visualization
-        html = ner_processor.visualize_entities(request.text, result['entities'])
+        html = ner_processor.visualize_entities(request.text, result['entities'], request.language)
         
         return HTMLResponse(content=html)
         
@@ -439,6 +494,7 @@ async def get_available_models():
     
     **Returns:**
     - List of available models and their status
+    - Supported languages
     """
     if not ner_processor:
         raise HTTPException(
@@ -448,16 +504,72 @@ async def get_available_models():
     
     try:
         models = ner_processor.get_available_models()
+        supported_languages = ner_processor.get_supported_languages()
+        
         return {
             "available_models": models,
-            "primary_model": ner_processor.model_name,
-            "fallback_model": ner_processor.fallback_model
+            "supported_languages": supported_languages,
+            "language_models": {
+                "en": {
+                    "small": "en_core_web_sm",
+                    "large": "en_core_web_lg"
+                },
+                "hr": {
+                    "small": "hr_core_news_sm",
+                    "large": "hr_core_news_lg"
+                }
+            }
         }
     except Exception as e:
         logger.error(f"Model info error: {e}", exc_info=True)
         raise HTTPException(
             status_code=500,
             detail=f"Failed to get model information: {str(e)}"
+        )
+
+
+@app.get("/languages")
+async def get_supported_languages():
+    """
+    Get list of supported languages.
+    
+    **Returns:**
+    - List of supported language codes
+    - Language information
+    """
+    if not ner_processor:
+        raise HTTPException(
+            status_code=503,
+            detail="NER service not initialized"
+        )
+    
+    try:
+        supported_languages = ner_processor.get_supported_languages()
+        
+        language_info = {
+            "en": {
+                "name": "English",
+                "small_model": "en_core_web_sm",
+                "large_model": "en_core_web_lg",
+                "available": ner_processor.is_language_supported("en")
+            },
+            "hr": {
+                "name": "Croatian",
+                "small_model": "hr_core_news_sm", 
+                "large_model": "hr_core_news_lg",
+                "available": ner_processor.is_language_supported("hr")
+            }
+        }
+        
+        return {
+            "supported_languages": supported_languages,
+            "language_info": language_info
+        }
+    except Exception as e:
+        logger.error(f"Language info error: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to get language information: {str(e)}"
         )
 
 

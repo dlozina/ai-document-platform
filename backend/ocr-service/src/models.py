@@ -13,6 +13,7 @@ class OCRResponse(BaseModel):
     page_count: int = Field(..., description="Number of pages processed")
     method: str = Field(..., description="Extraction method used")
     confidence: Optional[float] = Field(None, description="OCR confidence score (0-100)")
+    detected_language: Optional[str] = Field(None, description="Detected language code (e.g., 'eng', 'hrv', 'eng+hrv')")
     processing_time_ms: float = Field(..., description="Processing time in milliseconds")
     file_size_bytes: int = Field(..., description="Original file size")
     filename: str = Field(..., description="Original filename")

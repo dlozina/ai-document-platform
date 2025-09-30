@@ -20,3 +20,23 @@ ocr-service/
 ├── Dockerfile
 ├── docker-compose.yml
 └── README.md
+
+## Docker Compose
+
+# Start the service (detached mode)
+docker compose up -d
+
+# Start with logs visible
+docker compose up
+
+# Stop the service
+docker compose down
+
+# Rebuild and start (after code changes)
+docker compose up --build -d
+
+# View logs
+docker compose logs -f
+
+# Check service status
+docker compose ps

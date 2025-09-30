@@ -328,6 +328,8 @@ def test_dpi_settings(dpi, expected_quality):
 
 @pytest.mark.parametrize("language", [
     'eng',
+    'hrv',
+    'eng+hrv',
     'fra',
     'deu',
     'spa',
@@ -340,3 +342,72 @@ def test_language_settings(language):
         assert processor.language == language
     except RuntimeError:
         pytest.skip(f"Language pack {language} not installed")
+
+
+def test_language_detection():
+    """Test automatic language detection functionality."""
+    processor = OCRProcessor(language='eng+hrv', enable_language_detection=True)
+    
+    # Test Croatian text detection
+    croatian_text = "Ovo je hrvatski tekst sa č, ć, đ, š, ž karakterima."
+    detected_lang = processor._detect_language(croatian_text)
+    assert detected_lang == 'hrv'
+    
+    # Test English text detection
+    english_text = "This is English text with common words like the, and, or."
+    detected_lang = processor._detect_language(english_text)
+    assert detected_lang == 'eng'
+    
+    # Test mixed text detection
+    mixed_text = "This is mixed text. Ovo je miješani tekst sa English i Croatian words."
+    detected_lang = processor._detect_language(mixed_text)
+    assert detected_lang == 'eng+hrv'
+    
+    # Test short text (should return default language)
+    short_text = "Hi"
+    detected_lang = processor._detect_language(short_text)
+    assert detected_lang == 'eng+hrv'  # Default language
+
+
+def test_language_detection_disabled():
+    """Test that language detection can be disabled."""
+    processor = OCRProcessor(language='eng', enable_language_detection=False)
+    
+    # Even with Croatian text, should return configured language
+    croatian_text = "Ovo je hrvatski tekst sa č, ć, đ, š, ž karakterima."
+    detected_lang = processor._detect_language(croatian_text)
+    assert detected_lang == 'eng'  # Should return configured language, not detected
+
+
+def test_process_file_with_language_detection():
+    """Test that process_file includes detected language in result."""
+    processor = OCRProcessor(language='eng+hrv', enable_language_detection=True)
+    
+    # Create a simple test image with text
+    from PIL import Image, ImageDraw, ImageFont
+    import io
+    
+    # Create a test image
+    img = Image.new('RGB', (200, 50), color='white')
+    draw = ImageDraw.Draw(img)
+    
+    # Try to use a default font, fallback to basic if not available
+    try:
+        font = ImageFont.truetype("/System/Library/Fonts/Arial.ttf", 20)
+    except:
+        font = ImageFont.load_default()
+    
+    draw.text((10, 15), "Test English Text", fill='black', font=font)
+    
+    # Convert to bytes
+    img_bytes = io.BytesIO()
+    img.save(img_bytes, format='PNG')
+    img_bytes = img_bytes.getvalue()
+    
+    # Process the image
+    result = processor.process_file(img_bytes, "test.png")
+    
+    # Check that detected_language is included
+    assert 'detected_language' in result
+    assert result['detected_language'] is not None
+    assert isinstance(result['detected_language'], str)

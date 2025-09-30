@@ -38,7 +38,8 @@ class OCRProcessor:
         self,
         tesseract_cmd: Optional[str] = None,
         dpi: int = 300,
-        language: str = 'eng'
+        language: str = 'eng+hrv',
+        enable_language_detection: bool = True
     ):
         """
         Initialize OCR Processor.
@@ -46,18 +47,25 @@ class OCRProcessor:
         Args:
             tesseract_cmd: Path to tesseract executable (None = use system default)
             dpi: DPI for PDF to image conversion (higher = better quality, slower)
-            language: Tesseract language code (eng, fra, deu, etc.)
+            language: Tesseract language code (eng, hrv, eng+hrv, etc.)
+            enable_language_detection: Whether to detect language automatically
         """
         if tesseract_cmd:
             pytesseract.pytesseract.tesseract_cmd = tesseract_cmd
         
         self.dpi = dpi
         self.language = language
+        self.enable_language_detection = enable_language_detection
         
         # Verify tesseract is available
         try:
             pytesseract.get_tesseract_version()
             logger.info(f"Tesseract version: {pytesseract.get_tesseract_version()}")
+            
+            # Log available languages
+            available_langs = pytesseract.get_languages()
+            logger.info(f"Available languages: {available_langs}")
+            
         except Exception as e:
             logger.error(f"Tesseract not found: {e}")
             raise RuntimeError(
@@ -85,6 +93,7 @@ class OCRProcessor:
                 'page_count': int,        # Number of pages
                 'method': str,            # 'native_pdf', 'ocr_pdf', or 'ocr_image'
                 'confidence': float,      # OCR confidence (0-100, None for native)
+                'detected_language': str, # Detected language code
                 'processing_time_ms': float
             }
         
@@ -111,9 +120,16 @@ class OCRProcessor:
             # Add processing time
             result['processing_time_ms'] = (time.time() - start_time) * 1000
             
+            # Add detected language if enabled
+            if self.enable_language_detection and result['method'] != 'native_pdf':
+                result['detected_language'] = self._detect_language(result['text'])
+            else:
+                result['detected_language'] = self.language
+            
             logger.info(
                 f"Processed {filename} using {result['method']} "
-                f"in {result['processing_time_ms']:.2f}ms"
+                f"in {result['processing_time_ms']:.2f}ms "
+                f"(detected language: {result['detected_language']})"
             )
             
             return result
@@ -347,3 +363,63 @@ class OCRProcessor:
             words.append(word)
         
         return words
+    
+    def _detect_language(self, text: str) -> str:
+        """
+        Detect the primary language of the extracted text.
+        
+        Uses a simple heuristic approach based on character patterns
+        and common words to determine if text is Croatian or English.
+        
+        Args:
+            text: Extracted text to analyze
+            
+        Returns:
+            Detected language code ('eng', 'hrv', or 'eng+hrv' for mixed)
+        """
+        if not text or len(text.strip()) < 10:
+            return self.language
+        
+        text_lower = text.lower()
+        
+        # Croatian-specific characters and patterns
+        croatian_chars = ['č', 'ć', 'đ', 'š', 'ž', 'dž']
+        croatian_words = [
+            'i', 'je', 'na', 'za', 'od', 'do', 'sa', 'iz', 'po', 'u', 'o',
+            'da', 'ne', 'ili', 'ali', 'kada', 'gdje', 'kako', 'zašto',
+            'hrvatski', 'hrvatska', 'hrvatsko', 'republika', 'grad',
+            'ulica', 'adresa', 'telefon', 'email', 'datum', 'vrijeme'
+        ]
+        
+        # English-specific patterns
+        english_words = [
+            'the', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for',
+            'of', 'with', 'by', 'from', 'up', 'about', 'into', 'through',
+            'during', 'before', 'after', 'above', 'below', 'between',
+            'address', 'phone', 'email', 'date', 'time', 'street'
+        ]
+        
+        # Count Croatian-specific characters
+        croatian_char_count = sum(1 for char in text_lower if char in croatian_chars)
+        
+        # Count Croatian words
+        croatian_word_count = sum(1 for word in croatian_words if word in text_lower)
+        
+        # Count English words
+        english_word_count = sum(1 for word in english_words if word in text_lower)
+        
+        # Calculate scores
+        total_words = len(text.split())
+        croatian_score = (croatian_char_count * 2) + croatian_word_count
+        english_score = english_word_count
+        
+        # Determine language based on scores
+        if croatian_score > english_score and croatian_score > 2:
+            return 'hrv'
+        elif english_score > croatian_score and english_score > 2:
+            return 'eng'
+        elif croatian_score > 0 and english_score > 0:
+            return 'eng+hrv'  # Mixed content
+        else:
+            # Default to configured language if no clear indicators
+            return self.language

@@ -2,8 +2,8 @@
 NER Processor Module
 
 Handles Named Entity Recognition using spaCy models:
-- en_core_web_sm (small, fast model)
-- en_core_web_lg (large, accurate model)
+- English: en_core_web_sm, en_core_web_lg
+- Croatian: hr_core_news_sm, hr_core_news_lg
 """
 
 import logging
@@ -15,78 +15,104 @@ import json
 
 logger = logging.getLogger(__name__)
 
+# Supported languages and their models
+SUPPORTED_LANGUAGES = {
+    "en": {
+        "small": "en_core_web_sm",
+        "large": "en_core_web_lg"
+    },
+    "hr": {
+        "small": "hr_core_news_sm", 
+        "large": "hr_core_news_lg"
+    }
+}
+
 
 class NERProcessor:
     """
     Processes text to extract named entities using spaCy models.
     
     Supports:
-    - Multiple spaCy models (small and large)
+    - Multiple languages (English, Croatian)
+    - Multiple spaCy models per language (small and large)
     - Custom entity type filtering
     - Batch processing
     - Confidence scoring
     """
     
-    def __init__(
-        self,
-        model_name: str = "en_core_web_sm",
-        fallback_model: str = "en_core_web_lg"
-    ):
+    def __init__(self):
         """
-        Initialize NER Processor.
-        
-        Args:
-            model_name: Primary spaCy model to use
-            fallback_model: Fallback model if primary fails
+        Initialize NER Processor with support for multiple languages.
         """
-        self.model_name = model_name
-        self.fallback_model = fallback_model
-        self.nlp = None
-        self.fallback_nlp = None
+        self.models = {}  # Dictionary to store loaded models by language
         
-        # Load primary model
-        try:
-            self.nlp = spacy.load(model_name)
-            logger.info(f"Loaded spaCy model: {model_name}")
-        except OSError as e:
-            logger.warning(f"Failed to load primary model {model_name}: {e}")
-            self._load_fallback_model()
-        
-        # Load fallback model
-        if self.fallback_model != model_name:
-            try:
-                self.fallback_nlp = spacy.load(fallback_model)
-                logger.info(f"Loaded fallback spaCy model: {fallback_model}")
-            except OSError as e:
-                logger.warning(f"Failed to load fallback model {fallback_model}: {e}")
+        # Load models for all supported languages
+        for lang_code, models in SUPPORTED_LANGUAGES.items():
+            self._load_language_models(lang_code, models)
     
-    def _load_fallback_model(self):
-        """Load fallback model as primary."""
+    def _load_language_models(self, lang_code: str, models: Dict[str, str]):
+        """Load small and large models for a specific language."""
+        lang_models = {}
+        
+        # Try to load small model first
         try:
-            self.nlp = spacy.load(self.fallback_model)
-            logger.info(f"Using fallback model as primary: {self.fallback_model}")
+            lang_models['small'] = spacy.load(models['small'])
+            logger.info(f"Loaded {lang_code} small model: {models['small']}")
         except OSError as e:
-            logger.error(f"Failed to load any spaCy model: {e}")
-            raise RuntimeError(
-                "No spaCy models available. Install with: "
-                "python -m spacy download en_core_web_sm"
-            )
+            logger.warning(f"Failed to load {lang_code} small model {models['small']}: {e}")
+            lang_models['small'] = None
+        
+        # Try to load large model
+        try:
+            lang_models['large'] = spacy.load(models['large'])
+            logger.info(f"Loaded {lang_code} large model: {models['large']}")
+        except OSError as e:
+            logger.warning(f"Failed to load {lang_code} large model {models['large']}: {e}")
+            lang_models['large'] = None
+        
+        # If no models loaded for this language, log error
+        if not any(lang_models.values()):
+            logger.error(f"No models available for language: {lang_code}")
+        else:
+            self.models[lang_code] = lang_models
+    
+    def _get_model(self, language: str, use_large: bool = False):
+        """Get the appropriate model for the given language."""
+        if language not in self.models:
+            raise ValueError(f"Unsupported language: {language}")
+        
+        lang_models = self.models[language]
+        model_type = 'large' if use_large else 'small'
+        
+        # Try preferred model type first
+        if lang_models[model_type] is not None:
+            return lang_models[model_type], SUPPORTED_LANGUAGES[language][model_type]
+        
+        # Fallback to other model type
+        fallback_type = 'small' if use_large else 'large'
+        if lang_models[fallback_type] is not None:
+            logger.warning(f"Using {fallback_type} model as fallback for {language}")
+            return lang_models[fallback_type], SUPPORTED_LANGUAGES[language][fallback_type]
+        
+        raise RuntimeError(f"No models available for language: {language}")
     
     def process_text(
         self,
         text: str,
+        language: str = "en",
         entity_types: Optional[List[str]] = None,
         include_confidence: bool = True,
-        use_fallback: bool = False
+        use_large_model: bool = False
     ) -> Dict[str, any]:
         """
         Process text and extract named entities.
         
         Args:
             text: Input text to process
+            language: Language code (en, hr)
             entity_types: Specific entity types to extract (None = all)
             include_confidence: Whether to include confidence scores
-            use_fallback: Whether to use fallback model
+            use_large_model: Whether to use large model (default: small)
         
         Returns:
             {
@@ -94,11 +120,12 @@ class NERProcessor:
                 'entities': List[EntityInfo],   # Detected entities
                 'entity_count': int,           # Number of entities
                 'model_used': str,             # Model used
+                'language': str,              # Language processed
                 'processing_time_ms': float     # Processing time
             }
         
         Raises:
-            ValueError: If text is empty or too long
+            ValueError: If text is empty, too long, or unsupported language
             RuntimeError: If processing fails
         """
         start_time = time.time()
@@ -109,11 +136,12 @@ class NERProcessor:
         if len(text) > 1000000:  # 1M characters
             raise ValueError("Text too long. Maximum length: 1,000,000 characters")
         
+        if language not in SUPPORTED_LANGUAGES:
+            raise ValueError(f"Unsupported language: {language}. Supported: {list(SUPPORTED_LANGUAGES.keys())}")
+        
         try:
-            # Choose model
-            nlp_model = self.fallback_nlp if use_fallback else self.nlp
-            if nlp_model is None:
-                raise RuntimeError("No spaCy model available")
+            # Get appropriate model
+            nlp_model, model_name = self._get_model(language, use_large_model)
             
             # Process text
             doc = nlp_model(text)
@@ -129,13 +157,14 @@ class NERProcessor:
                 'text': text,
                 'entities': entities,
                 'entity_count': len(entities),
-                'model_used': self.fallback_model if use_fallback else self.model_name,
+                'spacy_model_used': model_name,
+                'language': language,
                 'processing_time_ms': round(processing_time, 2),
                 'text_length': len(text)
             }
             
             logger.info(
-                f"Processed text ({len(text)} chars) using {result['model_used']} "
+                f"Processed {language} text ({len(text)} chars) using {model_name} "
                 f"in {processing_time:.2f}ms - found {len(entities)} entities"
             )
             
@@ -210,36 +239,44 @@ class NERProcessor:
     def process_batch(
         self,
         texts: List[str],
+        language: str = "en",
         entity_types: Optional[List[str]] = None,
         include_confidence: bool = True,
-        batch_size: int = 100
+        batch_size: int = 100,
+        use_large_model: bool = False
     ) -> Dict[str, any]:
         """
         Process multiple texts in batch.
         
         Args:
             texts: List of texts to process
+            language: Language code (en, hr)
             entity_types: Specific entity types to extract
             include_confidence: Whether to include confidence scores
             batch_size: Number of texts to process at once
+            use_large_model: Whether to use large model (default: small)
         
         Returns:
             {
                 'results': List[NERResponse],  # Results for each text
                 'total_processing_time_ms': float,
-                'batch_size': int
+                'batch_size': int,
+                'language': str
             }
         """
         start_time = time.time()
         results = []
+        
+        # Get appropriate model
+        nlp_model, model_name = self._get_model(language, use_large_model)
         
         # Process in batches
         for i in range(0, len(texts), batch_size):
             batch_texts = texts[i:i + batch_size]
             
             # Use spaCy's batch processing if available
-            if self.nlp and hasattr(self.nlp, 'pipe'):
-                batch_docs = list(self.nlp.pipe(batch_texts))
+            if nlp_model and hasattr(nlp_model, 'pipe'):
+                batch_docs = list(nlp_model.pipe(batch_texts))
                 
                 for j, doc in enumerate(batch_docs):
                     entities = self._extract_entities(doc, entity_types, include_confidence)
@@ -248,7 +285,8 @@ class NERProcessor:
                         'text': batch_texts[j],
                         'entities': entities,
                         'entity_count': len(entities),
-                        'model_used': self.model_name,
+                        'spacy_model_used': model_name,
+                        'language': language,
                         'processing_time_ms': 0,  # Will be calculated for entire batch
                         'text_length': len(batch_texts[j])
                     }
@@ -256,7 +294,9 @@ class NERProcessor:
             else:
                 # Process individually
                 for text in batch_texts:
-                    result = self.process_text(text, entity_types, include_confidence)
+                    result = self.process_text(
+                        text, language, entity_types, include_confidence, use_large_model
+                    )
                     results.append(result)
         
         total_time = (time.time() - start_time) * 1000
@@ -264,7 +304,8 @@ class NERProcessor:
         return {
             'results': results,
             'total_processing_time_ms': round(total_time, 2),
-            'batch_size': len(texts)
+            'batch_size': len(texts),
+            'language': language
         }
     
     def get_entity_statistics(self, entities: List[Dict[str, any]]) -> Dict[str, any]:
@@ -329,22 +370,25 @@ class NERProcessor:
             ]
         }
     
-    def visualize_entities(self, text: str, entities: List[Dict[str, any]]) -> str:
+    def visualize_entities(self, text: str, entities: List[Dict[str, any]], language: str = "en") -> str:
         """
         Generate HTML visualization of entities.
         
         Args:
             text: Original text
             entities: Detected entities
+            language: Language code (en, hr)
         
         Returns:
             HTML string for visualization
         """
-        if not self.nlp:
-            return "<p>No spaCy model available for visualization</p>"
+        try:
+            nlp_model, _ = self._get_model(language, False)  # Use small model for visualization
+        except (ValueError, RuntimeError):
+            return f"<p>No spaCy model available for language: {language}</p>"
         
         # Create a spaCy doc
-        doc = self.nlp(text)
+        doc = nlp_model(text)
         
         # Override entities with our detected ones
         doc.ents = []
@@ -362,20 +406,19 @@ class NERProcessor:
         return html
     
     def get_available_models(self) -> Dict[str, bool]:
-        """Get information about available spaCy models."""
+        """Get information about available spaCy models for all languages."""
         models = {}
         
-        try:
-            spacy.load(self.model_name)
-            models[self.model_name] = True
-        except OSError:
-            models[self.model_name] = False
-        
-        if self.fallback_model != self.model_name:
-            try:
-                spacy.load(self.fallback_model)
-                models[self.fallback_model] = True
-            except OSError:
-                models[self.fallback_model] = False
+        for lang_code, lang_models in self.models.items():
+            for model_type, model_name in SUPPORTED_LANGUAGES[lang_code].items():
+                models[model_name] = lang_models[model_type] is not None
         
         return models
+    
+    def get_supported_languages(self) -> List[str]:
+        """Get list of supported language codes."""
+        return list(SUPPORTED_LANGUAGES.keys())
+    
+    def is_language_supported(self, language: str) -> bool:
+        """Check if a language is supported."""
+        return language in SUPPORTED_LANGUAGES and language in self.models
