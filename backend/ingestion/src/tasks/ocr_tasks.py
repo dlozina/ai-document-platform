@@ -5,6 +5,7 @@ Handles OCR text extraction from uploaded documents using Celery.
 """
 
 import logging
+import asyncio
 import httpx
 from celery import current_task
 from celery.exceptions import Retry, MaxRetriesExceededError
@@ -27,7 +28,7 @@ logger = logging.getLogger(__name__)
     max_retries=RETRY_POLICIES["ocr"]["max_retries"],
     default_retry_delay=RETRY_POLICIES["ocr"]["countdown"],
 )
-async def process_document_ocr(
+def process_document_ocr(
     self,
     document_id: str,
     tenant_id: str,
@@ -83,25 +84,29 @@ async def process_document_ocr(
         
         # Call OCR service
         settings = get_settings()
-        async with httpx.AsyncClient(timeout=300.0) as client:
-            files = {"file": (filename, file_content, content_type)}
-            params = {"force_ocr": force_ocr}
-            headers = {
-                "X-Tenant-ID": tenant_id,
-                "X-Document-ID": document_id
-            }
-            
-            response = await client.post(
-                f"{settings.ocr_service_url}/extract",
-                files=files,
-                params=params,
-                headers=headers
-            )
-            
-            if response.status_code != 200:
-                raise Exception(f"OCR service returned status {response.status_code}: {response.text}")
-            
-            ocr_result = response.json()
+        
+        async def call_ocr_service():
+            async with httpx.AsyncClient(timeout=300.0) as client:
+                files = {"file": (filename, file_content, content_type)}
+                params = {"force_ocr": force_ocr}
+                headers = {
+                    "X-Tenant-ID": tenant_id,
+                    "X-Document-ID": document_id
+                }
+                
+                response = await client.post(
+                    f"{settings.ocr_service_url}/extract",
+                    files=files,
+                    params=params,
+                    headers=headers
+                )
+                
+                if response.status_code != 200:
+                    raise Exception(f"OCR service returned status {response.status_code}: {response.text}")
+                
+                return response.json()
+        
+        ocr_result = asyncio.run(call_ocr_service())
         
         # Update document with OCR results
         with db_manager.get_session() as session:

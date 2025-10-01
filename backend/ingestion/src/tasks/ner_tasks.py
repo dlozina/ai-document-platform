@@ -5,6 +5,7 @@ Handles Named Entity Recognition processing using Celery.
 """
 
 import logging
+import asyncio
 import httpx
 from celery import current_task
 from celery.exceptions import Retry, MaxRetriesExceededError
@@ -26,7 +27,7 @@ logger = logging.getLogger(__name__)
     max_retries=RETRY_POLICIES["ner"]["max_retries"],
     default_retry_delay=RETRY_POLICIES["ner"]["countdown"],
 )
-async def process_document_ner(
+def process_document_ner(
     self,
     document_id: str,
     tenant_id: str
@@ -73,22 +74,26 @@ async def process_document_ner(
         
         # Call NER service
         settings = get_settings()
-        async with httpx.AsyncClient(timeout=60.0) as client:
-            payload = {
-                "text": document.ocr_text,
-                "tenant_id": tenant_id,
-                "document_id": document_id
-            }
-            
-            response = await client.post(
-                f"{settings.ner_service_url}/extract",
-                json=payload
-            )
-            
-            if response.status_code != 200:
-                raise Exception(f"NER service returned status {response.status_code}: {response.text}")
-            
-            ner_result = response.json()
+        
+        async def call_ner_service():
+            async with httpx.AsyncClient(timeout=60.0) as client:
+                payload = {
+                    "text": document.ocr_text,
+                    "tenant_id": tenant_id,
+                    "document_id": document_id
+                }
+                
+                response = await client.post(
+                    f"{settings.ner_service_url}/extract",
+                    json=payload
+                )
+                
+                if response.status_code != 200:
+                    raise Exception(f"NER service returned status {response.status_code}: {response.text}")
+                
+                return response.json()
+        
+        ner_result = asyncio.run(call_ner_service())
         
         # Update document with NER results
         with db_manager.get_session() as session:

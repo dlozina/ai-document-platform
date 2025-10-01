@@ -146,6 +146,25 @@ curl -X DELETE "http://localhost:8003/documents/{document_id}" \
 # Get tenant quota
 curl -X GET "http://localhost:8003/tenants/test-tenant/quota"
 ```
+# pipeline config
+```bash
+curl -X POST "http://localhost:8003/upload" \
+  -H "X-Tenant-ID: test-tenant" \
+  -H "Content-Type: multipart/form-data" \
+  -F "file=@sample.pdf" \
+  -F "pipeline_config_json='{\"enable_ocr\": true, \"enable_ner\": true, \"enable_embedding\": true}'"
+```
+
+pipeline config example:
+```bash
+{
+  "enable_ocr": true,
+  "enable_ner": true,
+  "enable_embedding": true,
+  "ocr_force": false,
+  "priority": 1
+}
+```
 
 #### Using Python requests
 

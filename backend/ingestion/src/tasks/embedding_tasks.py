@@ -5,6 +5,7 @@ Handles document embedding generation using Celery.
 """
 
 import logging
+import asyncio
 import httpx
 from celery import current_task
 from celery.exceptions import Retry, MaxRetriesExceededError
@@ -26,7 +27,7 @@ logger = logging.getLogger(__name__)
     max_retries=RETRY_POLICIES["embedding"]["max_retries"],
     default_retry_delay=RETRY_POLICIES["embedding"]["countdown"],
 )
-async def process_document_embedding(
+def process_document_embedding(
     self,
     document_id: str,
     tenant_id: str
@@ -73,22 +74,26 @@ async def process_document_embedding(
         
         # Call Embedding service
         settings = get_settings()
-        async with httpx.AsyncClient(timeout=120.0) as client:
-            payload = {
-                "text": document.ocr_text,
-                "tenant_id": tenant_id,
-                "document_id": document_id
-            }
-            
-            response = await client.post(
-                f"{settings.embedding_service_url}/embed",
-                json=payload
-            )
-            
-            if response.status_code != 200:
-                raise Exception(f"Embedding service returned status {response.status_code}: {response.text}")
-            
-            embedding_result = response.json()
+        
+        async def call_embedding_service():
+            async with httpx.AsyncClient(timeout=120.0) as client:
+                payload = {
+                    "text": document.ocr_text,
+                    "tenant_id": tenant_id,
+                    "document_id": document_id
+                }
+                
+                response = await client.post(
+                    f"{settings.embedding_service_url}/embed",
+                    json=payload
+                )
+                
+                if response.status_code != 200:
+                    raise Exception(f"Embedding service returned status {response.status_code}: {response.text}")
+                
+                return response.json()
+        
+        embedding_result = asyncio.run(call_embedding_service())
         
         # Update document with embedding results
         with db_manager.get_session() as session:

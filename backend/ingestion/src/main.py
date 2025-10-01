@@ -849,7 +849,7 @@ async def http_exception_handler(request, exc):
         content=ErrorResponse(
             error=exc.detail,
             detail=str(exc)
-        ).model_dump()
+        ).model_dump(mode='json')
     )
 
 
@@ -862,7 +862,7 @@ async def general_exception_handler(request, exc):
         content=ErrorResponse(
             error="Internal server error",
             detail=str(exc)
-        ).model_dump()
+        ).model_dump(mode='json')
     )
 
 
