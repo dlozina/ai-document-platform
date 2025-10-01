@@ -6,10 +6,13 @@ FastAPI application that handles file uploads, metadata storage, and processing 
 
 import logging
 import time
+import json
+import io
 from typing import Optional, List, Dict, Any
 from contextlib import asynccontextmanager
+from datetime import datetime
 
-from fastapi import FastAPI, File, UploadFile, HTTPException, Header, Depends, Query
+from fastapi import FastAPI, File, UploadFile, HTTPException, Header, Depends, Query, Form
 from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import text
@@ -132,6 +135,15 @@ app = FastAPI(
     ]
 )
 
+# Configure JSON encoder to handle datetime objects
+class DateTimeEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, datetime):
+            return obj.isoformat()
+        return super().default(obj)
+
+app.json_encoder = DateTimeEncoder
+
 
 # Dependency functions
 def get_tenant_id(tenant_id: Optional[str] = Header(None, alias="X-Tenant-ID")) -> str:
@@ -153,7 +165,43 @@ def get_db():
     return db_manager.get_session()
 
 
+def parse_pipeline_config(pipeline_config_json: Optional[str] = None) -> Optional[ProcessingPipelineConfig]:
+    """Parse pipeline config from JSON string."""
+    if not pipeline_config_json:
+        return None
+    
+    try:
+        config_data = json.loads(pipeline_config_json)
+        return ProcessingPipelineConfig(**config_data)
+    except (json.JSONDecodeError, ValueError) as e:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid pipeline_config JSON: {str(e)}"
+        )
+
+
 # API Endpoints
+
+@app.post("/test-upload")
+async def test_upload(
+    file: UploadFile = File(..., description="File to upload"),
+    tenant_id: str = Depends(get_tenant_id),
+    pipeline_config_json: Optional[str] = Form(None, description="Processing pipeline configuration as JSON string"),
+):
+    """Test endpoint to verify pipeline_config parsing."""
+    try:
+        # Parse pipeline config
+        pipeline_config = parse_pipeline_config(pipeline_config_json)
+        
+        return {
+            "message": "Test successful",
+            "filename": file.filename,
+            "tenant_id": tenant_id,
+            "pipeline_config": pipeline_config.model_dump() if pipeline_config else None,
+            "pipeline_config_raw": pipeline_config_json
+        }
+    except Exception as e:
+        return {"error": str(e), "type": type(e).__name__}
 
 @app.get("/health", response_model=HealthResponse)
 async def health_check():
@@ -205,7 +253,7 @@ async def health_check():
 async def upload_file(
     file: UploadFile = File(..., description="File to upload"),
     tenant_id: str = Depends(get_tenant_id),
-    pipeline_config: Optional[ProcessingPipelineConfig] = None,
+    pipeline_config_json: Optional[str] = Form(None, description="Processing pipeline configuration as JSON string"),
     tags: Optional[List[str]] = Query(None, description="Document tags"),
     description: Optional[str] = Query(None, description="Document description"),
     retention_days: Optional[int] = Query(None, description="Retention period in days"),
@@ -215,19 +263,24 @@ async def upload_file(
     Upload a single file.
     
     **Parameters:**
-    - **file**: The file to upload (required)
+    - **file**: The file to upload (required, multipart/form-data)
     - **X-Tenant-ID**: Tenant identifier (required header)
-    - **pipeline_config**: Processing pipeline configuration (optional)
-    - **tags**: Document tags (optional)
-    - **description**: Document description (optional)
-    - **retention_days**: Retention period in days (optional)
+    - **pipeline_config_json**: Processing pipeline configuration as JSON string (optional, form field)
+    - **tags**: Document tags (optional, query parameter)
+    - **description**: Document description (optional, query parameter)
+    - **retention_days**: Retention period in days (optional, query parameter)
     
     **Returns:**
     - Upload response with document metadata
+    
+    **Note:** The pipeline_config_json should be sent as a form field containing JSON string.
     """
     start_time = time.time()
     
     try:
+        # Parse pipeline config
+        pipeline_config = parse_pipeline_config(pipeline_config_json)
+        
         # Read file content
         content = await file.read()
         file_size = len(content)
@@ -327,7 +380,7 @@ async def upload_file(
             f"document_id={document_id}, processing started"
         )
         
-        return UploadResponse(
+        response_data = UploadResponse(
             document_id=document_id,
             filename=file.filename,
             file_size_bytes=file_size,
@@ -338,6 +391,8 @@ async def upload_file(
             storage_path=storage_path,
             message="File uploaded successfully, processing started"
         )
+        
+        return response_data.model_dump()
         
     except HTTPException:
         raise
@@ -356,25 +411,30 @@ async def upload_file(
 async def upload_files_batch(
     files: List[UploadFile] = File(..., description="Files to upload"),
     tenant_id: str = Depends(get_tenant_id),
-    pipeline_config: Optional[ProcessingPipelineConfig] = None,
+    pipeline_config_json: Optional[str] = Form(None, description="Processing pipeline configuration as JSON string"),
     db_session = Depends(get_db)
 ):
     """
     Upload multiple files in a batch.
     
     **Parameters:**
-    - **files**: List of files to upload (required)
+    - **files**: List of files to upload (required, multipart/form-data)
     - **X-Tenant-ID**: Tenant identifier (required header)
-    - **pipeline_config**: Processing pipeline configuration (optional)
+    - **pipeline_config_json**: Processing pipeline configuration as JSON string (optional, form field)
     
     **Returns:**
     - Batch upload response with individual results
+    
+    **Note:** The pipeline_config_json should be sent as a form field containing JSON string.
     """
     if len(files) > settings.max_files_per_request:
         raise HTTPException(
             status_code=400,
             detail=f"Too many files. Maximum: {settings.max_files_per_request}"
         )
+    
+    # Parse pipeline config
+    pipeline_config = parse_pipeline_config(pipeline_config_json)
     
     batch_id = generate_batch_id()
     successful_uploads = 0

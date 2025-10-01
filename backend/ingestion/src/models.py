@@ -5,7 +5,7 @@ Pydantic models for Ingestion Service API
 from typing import Optional, List, Dict, Any, Union
 from datetime import datetime
 from enum import Enum
-from pydantic import BaseModel, Field, UUID4
+from pydantic import BaseModel, Field, UUID4, ConfigDict, field_serializer
 
 
 class ProcessingStatus(str, Enum):
@@ -66,6 +66,8 @@ class DocumentMetadata(BaseModel):
 
 class UploadResponse(BaseModel):
     """Response model for file upload."""
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+    
     document_id: UUID4 = Field(..., description="Unique document identifier")
     filename: str = Field(..., description="Original filename")
     file_size_bytes: int = Field(..., description="File size in bytes")
@@ -75,6 +77,10 @@ class UploadResponse(BaseModel):
     processing_status: ProcessingStatus = Field(..., description="Processing status")
     storage_path: str = Field(..., description="Storage path")
     message: str = Field(..., description="Status message")
+    
+    @field_serializer('upload_timestamp')
+    def serialize_upload_timestamp(self, value: datetime) -> str:
+        return value.isoformat() if value else None
 
 
 class BatchUploadResponse(BaseModel):
