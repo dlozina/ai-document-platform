@@ -84,13 +84,29 @@ def process_document_embedding(
             async with httpx.AsyncClient(timeout=120.0) as client:
                 payload = {
                     "text": ocr_text,
-                    "tenant_id": tenant_id,
-                    "document_id": document_id
+                    "document_id": document_id,
+                    "metadata": {
+                        "filename": document.filename,
+                        "content_type": document.content_type,
+                        "file_type": document.file_type,
+                        "file_size_bytes": document.file_size_bytes,
+                        "upload_timestamp": document.upload_timestamp.isoformat() if document.upload_timestamp else None,
+                        "created_by": document.created_by,
+                        "processing_status": document.processing_status,
+                        "tags": document.tags or [],
+                        "description": document.description
+                    }
+                }
+                
+                headers = {
+                    "X-Tenant-ID": tenant_id,
+                    "X-Document-ID": document_id
                 }
                 
                 response = await client.post(
                     f"{settings.embedding_service_url}/embed",
-                    json=payload
+                    json=payload,
+                    headers=headers
                 )
                 
                 if response.status_code != 200:

@@ -365,13 +365,18 @@ class ProcessingPipeline:
             async with httpx.AsyncClient(timeout=120.0) as client:
                 payload = {
                     "text": text,
-                    "tenant_id": tenant_id,
                     "document_id": document_id
+                }
+                
+                headers = {
+                    "X-Tenant-ID": tenant_id,
+                    "X-Document-ID": document_id
                 }
                 
                 response = await client.post(
                     f"{self.settings.embedding_service_url}/embed",
-                    json=payload
+                    json=payload,
+                    headers=headers
                 )
                 
                 if response.status_code == 200:

@@ -66,6 +66,37 @@ services:
     networks:
       - backend-network
 
+  # Query Service
+  query-service:
+    build: ./query-service
+    ports:
+      - "8004:8004"
+    environment:
+      - DATABASE_URL=postgresql://postgres:password@postgres:5432/ingestion_db
+      - QDRANT_HOST=qdrant
+      - QDRANT_PORT=6333
+      - QDRANT_COLLECTION_NAME=embeddings
+      - EMBEDDING_MODEL=sentence-transformers/all-MiniLM-L6-v2
+      - LLM_PROVIDER=mistral
+      - MISTRAL_API_KEY=${MISTRAL_API_KEY}
+      - MISTRAL_MODEL=mistral-small
+      - LOG_LEVEL=INFO
+    depends_on:
+      - postgres
+      - qdrant
+    volumes:
+      - ./query-service/src:/app/src:ro
+      - ./query-service/tests:/app/tests:ro
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8004/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - backend-network
+
   # Qdrant Vector Database
   qdrant:
     image: qdrant/qdrant:v1.8.4
