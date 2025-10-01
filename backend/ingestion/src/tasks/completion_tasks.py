@@ -41,6 +41,13 @@ def finalize_document_processing(document_id: str, tenant_id: str) -> Dict[str, 
             if not document:
                 return {"document_id": document_id, "status": "document_not_found"}
             
+            # Extract required attributes while session is active
+            created_at = document.created_at
+            file_size_bytes = document.file_size_bytes
+            ocr_text = document.ocr_text
+            ner_entities = document.ner_entities
+            embedding_vector = document.embedding_vector
+            
             # Update final processing status
             db_manager.update_document(session, document_id, {
                 "processing_status": ProcessingStatus.COMPLETED,
@@ -48,23 +55,23 @@ def finalize_document_processing(document_id: str, tenant_id: str) -> Dict[str, 
             })
             
             # Log processing completion metrics
-            processing_time = (datetime.utcnow() - document.created_at).total_seconds()
+            processing_time = (datetime.utcnow() - created_at).total_seconds()
             
             logger.info(
                 f"Document {document_id} processing completed successfully. "
                 f"Processing time: {processing_time:.2f} seconds, "
-                f"File size: {document.file_size_bytes} bytes, "
-                f"OCR text length: {len(document.ocr_text or '')} characters"
+                f"File size: {file_size_bytes} bytes, "
+                f"OCR text length: {len(ocr_text or '')} characters"
             )
         
         return {
             "document_id": document_id,
             "status": "completed",
             "processing_time_seconds": processing_time,
-            "file_size_bytes": document.file_size_bytes,
-            "ocr_text_length": len(document.ocr_text or ""),
-            "ner_entities_count": len(document.ner_entities or []),
-            "embedding_dimensions": len(document.embedding_vector or [])
+            "file_size_bytes": file_size_bytes,
+            "ocr_text_length": len(ocr_text or ""),
+            "ner_entities_count": len(ner_entities or []),
+            "embedding_dimensions": len(embedding_vector or [])
         }
         
     except Exception as exc:

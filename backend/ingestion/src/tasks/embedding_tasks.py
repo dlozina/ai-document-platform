@@ -59,8 +59,17 @@ def process_document_embedding(
             if not document.ocr_text:
                 raise Exception(f"No OCR text available for document {document_id}")
             
-            # Extract OCR text while session is active
+            # Extract all required attributes while session is active
             ocr_text = document.ocr_text
+            filename = document.filename
+            content_type = document.content_type
+            file_type = document.file_type
+            file_size_bytes = document.file_size_bytes
+            upload_timestamp = document.upload_timestamp
+            created_by = document.created_by
+            processing_status = document.processing_status
+            tags = document.tags
+            description = document.description
             
             # Update document status
             db_manager.update_document(session, document_id, {
@@ -86,15 +95,15 @@ def process_document_embedding(
                     "text": ocr_text,
                     "document_id": document_id,
                     "metadata": {
-                        "filename": document.filename,
-                        "content_type": document.content_type,
-                        "file_type": document.file_type,
-                        "file_size_bytes": document.file_size_bytes,
-                        "upload_timestamp": document.upload_timestamp.isoformat() if document.upload_timestamp else None,
-                        "created_by": document.created_by,
-                        "processing_status": document.processing_status,
-                        "tags": document.tags or [],
-                        "description": document.description
+                        "filename": filename,
+                        "content_type": content_type,
+                        "file_type": file_type,
+                        "file_size_bytes": file_size_bytes,
+                        "upload_timestamp": upload_timestamp.isoformat() if upload_timestamp else None,
+                        "created_by": created_by,
+                        "processing_status": processing_status,
+                        "tags": tags or [],
+                        "description": description
                     }
                 }
                 
@@ -216,16 +225,21 @@ def check_processing_completion(document_id: str, tenant_id: str) -> Dict[str, A
             if not document:
                 return {"document_id": document_id, "status": "document_not_found"}
             
+            # Extract required attributes while session is active
+            ocr_status = document.ocr_status
+            ner_status = document.ner_status
+            embedding_status = document.embedding_status
+            
             # Check if all enabled processing is complete
-            ocr_complete = document.ocr_status == ProcessingStatus.COMPLETED
-            ner_complete = document.ner_status == ProcessingStatus.COMPLETED or document.ner_status is None
-            embedding_complete = document.embedding_status == ProcessingStatus.COMPLETED or document.embedding_status is None
+            ocr_complete = ocr_status == ProcessingStatus.COMPLETED
+            ner_complete = ner_status == ProcessingStatus.COMPLETED or ner_status is None
+            embedding_complete = embedding_status == ProcessingStatus.COMPLETED or embedding_status is None
             
             # Check if any processing failed
             any_failed = (
-                document.ocr_status == ProcessingStatus.FAILED or
-                document.ner_status == ProcessingStatus.FAILED or
-                document.embedding_status == ProcessingStatus.FAILED
+                ocr_status == ProcessingStatus.FAILED or
+                ner_status == ProcessingStatus.FAILED or
+                embedding_status == ProcessingStatus.FAILED
             )
             
             if any_failed:
@@ -238,9 +252,9 @@ def check_processing_completion(document_id: str, tenant_id: str) -> Dict[str, A
                 return {
                     "document_id": document_id,
                     "status": "failed",
-                    "ocr_status": document.ocr_status,
-                    "ner_status": document.ner_status,
-                    "embedding_status": document.embedding_status
+                    "ocr_status": ocr_status,
+                    "ner_status": ner_status,
+                    "embedding_status": embedding_status
                 }
             
             elif ocr_complete and ner_complete and embedding_complete:
@@ -253,9 +267,9 @@ def check_processing_completion(document_id: str, tenant_id: str) -> Dict[str, A
                 return {
                     "document_id": document_id,
                     "status": "completed",
-                    "ocr_status": document.ocr_status,
-                    "ner_status": document.ner_status,
-                    "embedding_status": document.embedding_status
+                    "ocr_status": ocr_status,
+                    "ner_status": ner_status,
+                    "embedding_status": embedding_status
                 }
             else:
                 # Still processing
@@ -263,9 +277,9 @@ def check_processing_completion(document_id: str, tenant_id: str) -> Dict[str, A
                 return {
                     "document_id": document_id,
                     "status": "processing",
-                    "ocr_status": document.ocr_status,
-                    "ner_status": document.ner_status,
-                    "embedding_status": document.embedding_status
+                    "ocr_status": ocr_status,
+                    "ner_status": ner_status,
+                    "embedding_status": embedding_status
                 }
         
     except Exception as exc:

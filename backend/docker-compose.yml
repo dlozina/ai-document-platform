@@ -79,7 +79,7 @@ services:
       - EMBEDDING_MODEL=sentence-transformers/all-MiniLM-L6-v2
       - LLM_PROVIDER=mistral
       - MISTRAL_API_KEY=${MISTRAL_API_KEY}
-      - MISTRAL_MODEL=mistral-large
+      - MISTRAL_MODEL=mistral-large-2411
       - LOG_LEVEL=INFO
     depends_on:
       - postgres

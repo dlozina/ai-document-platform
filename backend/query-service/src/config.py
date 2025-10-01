@@ -47,7 +47,7 @@ class Settings(BaseSettings):
     anthropic_api_key: Optional[str] = None
     anthropic_model: str = "claude-3-sonnet-20240229"
     mistral_api_key: Optional[str] = None
-    mistral_model: str = "mistral-large"
+    mistral_model: str = "mistral-large-2411"
     
     # Query Settings
     default_top_k: int = 10
