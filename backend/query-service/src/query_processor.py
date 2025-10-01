@@ -17,6 +17,7 @@ import spacy
 from sklearn.metrics.pairwise import cosine_similarity
 
 from .config import get_settings
+from .llm_client import LLMManager
 
 logger = logging.getLogger(__name__)
 
@@ -32,6 +33,7 @@ class QueryProcessor:
         self.nlp = None
         self.db_engine = None
         self.db_session = None
+        self.llm_manager = None
         
         # Initialize components
         self._initialize_embedding_model()
@@ -39,6 +41,7 @@ class QueryProcessor:
         self._initialize_database()
         self._initialize_nlp()
         self._initialize_rerank_model()
+        self._initialize_llm()
     
     def _initialize_embedding_model(self):
         """Initialize the embedding model."""
@@ -99,6 +102,29 @@ class QueryProcessor:
             except Exception as e:
                 logger.warning(f"Failed to load rerank model: {e}. Reranking disabled.")
                 self.rerank_model = None
+    
+    def _initialize_llm(self):
+        """Initialize LLM manager."""
+        try:
+            provider = self.settings.llm_provider.lower()
+            api_key = getattr(self.settings, f"{provider}_api_key", None)
+            model = getattr(self.settings, f"{provider}_model", None)
+            
+            if not api_key:
+                logger.warning(f"No API key found for {provider}. LLM features will be disabled.")
+                return
+            
+            if not model:
+                logger.warning(f"No model specified for {provider}. LLM features will be disabled.")
+                return
+            
+            logger.info(f"Initializing LLM: {provider} with model {model}")
+            self.llm_manager = LLMManager(provider, api_key, model)
+            logger.info("LLM manager initialized successfully")
+            
+        except Exception as e:
+            logger.warning(f"Failed to initialize LLM manager: {e}. LLM features will be disabled.")
+            self.llm_manager = None
     
     def generate_query_embedding(self, query: str) -> List[float]:
         """Generate embedding for query text."""
@@ -362,7 +388,7 @@ class QueryProcessor:
             logger.error(f"Answer span extraction failed: {e}")
             return document_text[:500], 0.1
     
-    def generate_rag_answer(
+    async def generate_rag_answer(
         self,
         question: str,
         context_documents: List[Dict[str, Any]],
@@ -370,33 +396,54 @@ class QueryProcessor:
     ) -> Tuple[str, float]:
         """Generate answer using RAG (Retrieval-Augmented Generation)."""
         try:
-            # Prepare context
+            if not self.llm_manager:
+                logger.warning("LLM manager not available, falling back to template response")
+                return self._generate_fallback_answer(question, context_documents)
+            
+            # Use the LLM manager to generate the answer
             context_length = max_context_length or self.settings.max_context_length
-            context_texts = []
-            
-            for doc in context_documents[:5]:  # Limit to top 5 documents
-                text = doc.get("text", "")
-                if len(text) > 200:  # Truncate very long texts
-                    text = text[:200] + "..."
-                context_texts.append(f"Document: {doc.get('filename', 'Unknown')}\n{text}")
-            
-            context = "\n\n".join(context_texts)
-            
-            # Truncate context if too long
-            if len(context) > context_length:
-                context = context[:context_length] + "..."
-            
-            # For now, return a simple template-based answer
-            # In production, you'd integrate with actual LLM APIs
-            answer = f"Based on the provided documents, here's what I found regarding your question: '{question}'\n\n"
-            answer += f"Relevant information:\n{context[:1000]}..."
-            
-            confidence = 0.7  # Placeholder confidence
+            answer, confidence = await self.llm_manager.generate_rag_answer(
+                question=question,
+                context_documents=context_documents,
+                max_context_length=context_length,
+                temperature=0.7,
+                max_tokens=1000
+            )
             
             return answer, confidence
             
         except Exception as e:
             logger.error(f"RAG answer generation failed: {e}")
+            return self._generate_fallback_answer(question, context_documents)
+    
+    def _generate_fallback_answer(
+        self,
+        question: str,
+        context_documents: List[Dict[str, Any]]
+    ) -> Tuple[str, float]:
+        """Generate a fallback answer when LLM is not available."""
+        try:
+            # Prepare context
+            context_texts = []
+            
+            for doc in context_documents[:3]:  # Limit to top 3 documents
+                text = doc.get("text", "")
+                if len(text) > 200:  # Truncate very long texts
+                    text = text[:200] + "..."
+                context_texts.append(text)
+            
+            context = "\n\n".join(context_texts)
+            
+            # Generate a simple answer
+            answer = f"Based on the available documents, here's what I found regarding your question: '{question}'\n\n"
+            answer += f"Relevant information:\n{context[:500]}..."
+            
+            confidence = 0.3  # Lower confidence for fallback
+            
+            return answer, confidence
+            
+        except Exception as e:
+            logger.error(f"Fallback answer generation failed: {e}")
             return "I apologize, but I couldn't generate a proper answer at this time.", 0.1
     
     def health_check(self) -> Dict[str, Any]:
@@ -406,7 +453,8 @@ class QueryProcessor:
             "qdrant_available": False,
             "database_connected": False,
             "nlp_loaded": self.nlp is not None,
-            "rerank_model_loaded": self.rerank_model is not None
+            "rerank_model_loaded": self.rerank_model is not None,
+            "llm_available": self.llm_manager is not None
         }
         
         # Check Qdrant

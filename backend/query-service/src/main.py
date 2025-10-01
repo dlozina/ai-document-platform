@@ -249,8 +249,8 @@ async def query_documents(
                 
         elif request.mode == QueryMode.RAG:
             if search_results:
-                # Generate RAG answer
-                answer, confidence_score = query_processor.generate_rag_answer(
+                # Generate RAG answer (async)
+                answer, confidence_score = await query_processor.generate_rag_answer(
                     request.query,
                     search_results,
                     max_context_length=request.max_context_length
@@ -445,8 +445,8 @@ async def question_answering(
                 
         elif request.mode == QueryMode.RAG:
             if search_results:
-                # Generate RAG answer
-                answer, confidence_score = query_processor.generate_rag_answer(
+                # Generate RAG answer (async)
+                answer, confidence_score = await query_processor.generate_rag_answer(
                     request.question,
                     search_results,
                     max_context_length=request.max_context_length

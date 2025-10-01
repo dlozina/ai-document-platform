@@ -13,7 +13,7 @@ services:
       - EMBEDDING_MODEL=sentence-transformers/all-MiniLM-L6-v2
       - LLM_PROVIDER=mistral
       - MISTRAL_API_KEY=${MISTRAL_API_KEY}
-      - MISTRAL_MODEL=mistral-small
+      - MISTRAL_MODEL=mistral-large
       - LOG_LEVEL=INFO
     volumes:
       - ./logs:/app/logs
