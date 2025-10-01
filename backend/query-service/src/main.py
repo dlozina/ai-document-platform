@@ -241,7 +241,7 @@ async def query_documents(
                 # Extract answer from top result
                 top_doc = search_results[0]
                 answer, confidence_score = query_processor.extract_answer_span(
-                    request.query, top_doc["text"]
+                    request.query, top_doc["text"], top_doc.get("metadata")
                 )
             else:
                 answer = "No relevant documents found to answer your question."
@@ -437,7 +437,7 @@ async def question_answering(
                 # Extract answer from top result
                 top_doc = search_results[0]
                 answer, confidence_score = query_processor.extract_answer_span(
-                    request.question, top_doc["text"]
+                    request.question, top_doc["text"], top_doc.get("metadata")
                 )
             else:
                 answer = "No relevant documents found to answer your question."

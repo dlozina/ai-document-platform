@@ -354,29 +354,203 @@ class QueryProcessor:
         
         return filtered_results
     
-    def extract_answer_span(self, question: str, document_text: str) -> Tuple[str, float]:
-        """Extract answer span from document text for extractive QA."""
+    def extract_answer_span(self, question: str, document_text: str, document_metadata: Optional[Dict[str, Any]] = None) -> Tuple[str, float]:
+        """Extract answer span from document text using entity-aware extraction."""
         try:
-            # Simple keyword-based extraction for now
-            # In production, you'd use more sophisticated methods
+            # Extract entities from question
+            question_entities = self.extract_entities(question)
             
+            # Get document entities from metadata
+            doc_entities = []
+            if document_metadata:
+                doc_entities = document_metadata.get("ner_entities", [])
+            
+            # Try entity-aware extraction first
+            if question_entities and doc_entities:
+                answer, confidence = self._extract_entity_aware_answer(
+                    question, question_entities, document_text, doc_entities
+                )
+                if answer and confidence > 0.5:
+                    return answer, confidence
+            
+            # Fallback to improved keyword-based extraction
+            return self._extract_keyword_based_answer(question, document_text)
+            
+        except Exception as e:
+            logger.error(f"Answer span extraction failed: {e}")
+            return document_text[:500], 0.1
+    
+    def _extract_entity_aware_answer(
+        self, 
+        question: str, 
+        question_entities: List[Dict[str, Any]], 
+        document_text: str, 
+        doc_entities: List[Dict[str, Any]]
+    ) -> Tuple[str, float]:
+        """Extract answer using entity matching and context."""
+        try:
+            question_lower = question.lower()
+            
+            # Find matching entities between question and document
+            matching_entities = []
+            for q_entity in question_entities:
+                q_text = q_entity["text"].lower()
+                for d_entity in doc_entities:
+                    d_text = d_entity["text"].lower()
+                    if q_text in d_text or d_text in q_text:
+                        matching_entities.append({
+                            "question_entity": q_entity,
+                            "document_entity": d_entity
+                        })
+            
+            if not matching_entities:
+                return "", 0.0
+            
+            # Extract contextual answers based on entity types and relationships
+            sentences = [s.strip() for s in document_text.split('.') if s.strip()]
+            best_answer = ""
+            best_confidence = 0.0
+            
+            for match in matching_entities:
+                q_entity = match["question_entity"]
+                d_entity = match["document_entity"]
+                
+                # Find sentences containing the matching entity
+                entity_text = d_entity["text"]
+                entity_sentences = [s for s in sentences if entity_text.lower() in s.lower()]
+                
+                if not entity_sentences:
+                    continue
+                
+                # Extract contextual answer based on entity type
+                answer, confidence = self._extract_contextual_answer(
+                    q_entity, d_entity, entity_sentences, question_lower
+                )
+                
+                if confidence > best_confidence:
+                    best_answer = answer
+                    best_confidence = confidence
+            
+            return best_answer, best_confidence
+            
+        except Exception as e:
+            logger.warning(f"Entity-aware extraction failed: {e}")
+            return "", 0.0
+    
+    def _extract_contextual_answer(
+        self, 
+        q_entity: Dict[str, Any], 
+        d_entity: Dict[str, Any], 
+        entity_sentences: List[str], 
+        question_lower: str
+    ) -> Tuple[str, float]:
+        """Extract contextual answer based on entity type and question context."""
+        try:
+            entity_label = d_entity.get("label", "").upper()
+            entity_text = d_entity["text"]
+            
+            # Handle different entity types
+            if entity_label in ["PERSON", "PER"]:
+                return self._extract_person_context(entity_text, entity_sentences, question_lower)
+            elif entity_label in ["GPE", "LOCATION", "LOC"]:
+                return self._extract_location_context(entity_text, entity_sentences, question_lower)
+            elif entity_label in ["ORG", "ORGANIZATION"]:
+                return self._extract_organization_context(entity_text, entity_sentences, question_lower)
+            else:
+                # Generic entity extraction
+                return self._extract_generic_context(entity_text, entity_sentences, question_lower)
+                
+        except Exception as e:
+            logger.warning(f"Contextual extraction failed: {e}")
+            return "", 0.0
+    
+    def _extract_location_context(self, entity_text: str, sentences: List[str], question_lower: str) -> Tuple[str, float]:
+        """Extract location-related context."""
+        for sentence in sentences:
+            sentence_lower = sentence.lower()
+            if entity_text.lower() in sentence_lower:
+                # Look for location patterns
+                if any(word in sentence_lower for word in ["based in", "located in", "from", "in", "at"]):
+                    # Extract the location phrase
+                    words = sentence.split()
+                    entity_words = entity_text.split()
+                    
+                    # Find entity position and extract surrounding context
+                    for i, word in enumerate(words):
+                        if entity_words[0].lower() in word.lower():
+                            # Extract 3-5 words around the entity
+                            start = max(0, i - 2)
+                            end = min(len(words), i + len(entity_words) + 3)
+                            context = " ".join(words[start:end])
+                            
+                            # Clean up the context
+                            context = context.replace("  ", " ").strip()
+                            return context, 0.8
+        
+        # Fallback to sentence containing entity
+        if sentences:
+            return sentences[0], 0.6
+        
+        return "", 0.0
+    
+    def _extract_person_context(self, entity_text: str, sentences: List[str], question_lower: str) -> Tuple[str, float]:
+        """Extract person-related context."""
+        for sentence in sentences:
+            sentence_lower = sentence.lower()
+            if entity_text.lower() in sentence_lower:
+                # Look for introduction patterns
+                if any(word in sentence_lower for word in ["i'm", "i am", "my name is", "hello"]):
+                    return sentence, 0.7
+        
+        # Fallback to sentence containing entity
+        if sentences:
+            return sentences[0], 0.5
+        
+        return "", 0.0
+    
+    def _extract_organization_context(self, entity_text: str, sentences: List[str], question_lower: str) -> Tuple[str, float]:
+        """Extract organization-related context."""
+        for sentence in sentences:
+            sentence_lower = sentence.lower()
+            if entity_text.lower() in sentence_lower:
+                # Look for work/company patterns
+                if any(word in sentence_lower for word in ["worked at", "company", "startup", "firm"]):
+                    return sentence, 0.7
+        
+        # Fallback to sentence containing entity
+        if sentences:
+            return sentences[0], 0.5
+        
+        return "", 0.0
+    
+    def _extract_generic_context(self, entity_text: str, sentences: List[str], question_lower: str) -> Tuple[str, float]:
+        """Extract generic context for any entity type."""
+        if sentences:
+            return sentences[0], 0.5
+        return "", 0.0
+    
+    def _extract_keyword_based_answer(self, question: str, document_text: str) -> Tuple[str, float]:
+        """Improved keyword-based extraction as fallback."""
+        try:
             question_lower = question.lower()
             text_lower = document_text.lower()
             
             # Find sentences containing question keywords
-            sentences = document_text.split('.')
+            sentences = [s.strip() for s in document_text.split('.') if s.strip()]
             relevant_sentences = []
             
             for sentence in sentences:
                 sentence_lower = sentence.lower()
-                # Check if sentence contains question words
-                question_words = [word for word in question_lower.split() if len(word) > 3]
+                # Check if sentence contains question words (improved logic)
+                question_words = [word for word in question_lower.split() if len(word) > 2]  # Reduced threshold
                 if any(word in sentence_lower for word in question_words):
-                    relevant_sentences.append(sentence.strip())
+                    relevant_sentences.append(sentence)
             
             if relevant_sentences:
-                answer = '. '.join(relevant_sentences[:3])  # Take first 3 relevant sentences
-                confidence = min(0.9, len(relevant_sentences) / 5.0)  # Simple confidence scoring
+                # Take the most relevant sentence (first one with highest keyword density)
+                best_sentence = relevant_sentences[0]
+                answer = best_sentence
+                confidence = min(0.7, len(relevant_sentences) / 3.0)  # Improved confidence scoring
             else:
                 # Fallback to first few sentences
                 answer = '. '.join(sentences[:2])
@@ -385,7 +559,7 @@ class QueryProcessor:
             return answer, confidence
             
         except Exception as e:
-            logger.error(f"Answer span extraction failed: {e}")
+            logger.error(f"Keyword-based extraction failed: {e}")
             return document_text[:500], 0.1
     
     async def generate_rag_answer(

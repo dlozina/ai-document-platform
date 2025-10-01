@@ -70,6 +70,7 @@ def process_document_embedding(
             processing_status = document.processing_status
             tags = document.tags
             description = document.description
+            ner_entities = document.ner_entities
             
             # Update document status
             db_manager.update_document(session, document_id, {
@@ -103,7 +104,8 @@ def process_document_embedding(
                         "created_by": created_by,
                         "processing_status": processing_status,
                         "tags": tags or [],
-                        "description": description
+                        "description": description,
+                        "ner_entities": ner_entities or []
                     }
                 }
                 
