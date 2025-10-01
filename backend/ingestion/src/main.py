@@ -32,7 +32,7 @@ from .utils import (
     FileValidator, TenantQuotaChecker, calculate_file_hash, 
     detect_file_type, generate_storage_path, generate_document_id,
     generate_batch_id, calculate_retention_date, extract_file_metadata,
-    log_upload_stats
+    log_upload_stats, convert_document_to_metadata
 )
 
 # Configure logging
@@ -584,8 +584,11 @@ async def list_documents(
         db_session, tenant_id, file_type, processing_status
     )
     
+    # Convert Document objects to DocumentMetadata
+    document_metadata = [convert_document_to_metadata(doc) for doc in documents]
+    
     return DocumentListResponse(
-        documents=documents,
+        documents=document_metadata,
         total_count=total_count,
         page=page,
         page_size=page_size,
@@ -617,7 +620,7 @@ async def get_document(
     if document.tenant_id != tenant_id:
         raise HTTPException(status_code=403, detail="Access denied")
     
-    return document
+    return convert_document_to_metadata(document)
 
 
 @app.get("/documents/{document_id}/download")
@@ -733,7 +736,7 @@ async def update_document(
     
     updated_document = db_manager.update_document(db_session, document_id, update_data)
     
-    return updated_document
+    return convert_document_to_metadata(updated_document)
 
 
 @app.delete("/documents/{document_id}")

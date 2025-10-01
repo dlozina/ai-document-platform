@@ -6,6 +6,7 @@ import hashlib
 import logging
 import mimetypes
 import uuid
+import io
 from typing import Optional, Dict, Any, List, Tuple
 from pathlib import Path
 from datetime import datetime, timedelta
@@ -400,3 +401,40 @@ def extract_file_metadata(content: bytes, filename: str) -> Dict[str, Any]:
         logger.warning(f"Failed to extract metadata from {filename}: {e}")
     
     return metadata
+
+
+def convert_document_to_metadata(document) -> Dict[str, Any]:
+    """
+    Convert a Document database object to DocumentMetadata dictionary.
+    
+    Args:
+        document: Document database object
+        
+    Returns:
+        Dictionary compatible with DocumentMetadata Pydantic model
+    """
+    return {
+        "id": document.id,
+        "tenant_id": document.tenant_id,
+        "filename": document.filename,
+        "file_size_bytes": document.file_size_bytes,
+        "content_type": document.content_type,
+        "file_type": document.file_type,
+        "file_hash": document.file_hash,
+        "storage_path": document.storage_path,
+        "upload_timestamp": document.upload_timestamp,
+        "created_by": document.created_by,
+        "processing_status": document.processing_status,
+        "ocr_status": document.ocr_status,
+        "ner_status": document.ner_status,
+        "embedding_status": document.embedding_status,
+        "ocr_text": document.ocr_text,
+        "ner_entities": document.ner_entities,
+        "embedding_vector": document.embedding_vector,
+        "tags": document.tags or [],
+        "description": document.description,
+        "retention_date": document.retention_date,
+        "is_deleted": document.is_deleted,
+        "created_at": document.created_at,
+        "updated_at": document.updated_at
+    }
