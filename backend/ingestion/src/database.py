@@ -195,12 +195,28 @@ class DatabaseManager:
         ).first()
     
     def create_processing_job(self, session: Session, job_data: Dict[str, Any]) -> ProcessingJob:
-        """Create a new processing job."""
-        job = ProcessingJob(**job_data)
-        session.add(job)
-        session.commit()
-        session.refresh(job)
-        return job
+        """Create a new processing job or update existing one if it already exists."""
+        job_id = job_data.get('id')
+        
+        # Try to get existing job first
+        existing_job = session.query(ProcessingJob).filter(ProcessingJob.id == job_id).first()
+        
+        if existing_job:
+            # Update existing job
+            for key, value in job_data.items():
+                if hasattr(existing_job, key):
+                    setattr(existing_job, key, value)
+            existing_job.updated_at = datetime.utcnow()
+            session.commit()
+            session.refresh(existing_job)
+            return existing_job
+        else:
+            # Create new job
+            job = ProcessingJob(**job_data)
+            session.add(job)
+            session.commit()
+            session.refresh(job)
+            return job
     
     def update_processing_job(self, session: Session, job_id: str, update_data: Dict[str, Any]) -> Optional[ProcessingJob]:
         """Update processing job."""

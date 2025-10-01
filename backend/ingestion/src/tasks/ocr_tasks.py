@@ -202,8 +202,8 @@ def trigger_next_processing(document_id: str, tenant_id: str) -> Dict[str, Any]:
     
     try:
         # Import here to avoid circular imports
-        from .tasks.ner_tasks import process_document_ner
-        from .tasks.embedding_tasks import process_document_embedding
+        from .ner_tasks import process_document_ner
+        from .embedding_tasks import process_document_embedding
         
         # Start NER and Embedding processing in parallel
         ner_task = process_document_ner.delay(document_id, tenant_id)

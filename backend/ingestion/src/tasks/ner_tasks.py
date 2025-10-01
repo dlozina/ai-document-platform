@@ -48,6 +48,8 @@ def process_document_ner(
     try:
         # Get document and check if OCR text is available
         db_manager = get_db_manager()
+        ocr_text = None
+        
         with db_manager.get_session() as session:
             document = db_manager.get_document(session, document_id)
             
@@ -56,6 +58,9 @@ def process_document_ner(
             
             if not document.ocr_text:
                 raise Exception(f"No OCR text available for document {document_id}")
+            
+            # Extract OCR text while session is active
+            ocr_text = document.ocr_text
             
             # Update document status
             db_manager.update_document(session, document_id, {
@@ -78,7 +83,7 @@ def process_document_ner(
         async def call_ner_service():
             async with httpx.AsyncClient(timeout=60.0) as client:
                 payload = {
-                    "text": document.ocr_text,
+                    "text": ocr_text,
                     "tenant_id": tenant_id,
                     "document_id": document_id
                 }

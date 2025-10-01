@@ -500,6 +500,11 @@ docker run -d \
   ingestion-service:latest
 ```
 
+### Restart Celery Workers
+```bash
+docker restart backend-celery-worker-1 backend-celery-worker-2
+```
+
 ### Kubernetes Deployment
 
 Create deployment and service YAML files for Kubernetes deployment.
