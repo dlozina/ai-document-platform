@@ -12,10 +12,11 @@ from typing import Optional, List, Dict, Any
 from contextlib import asynccontextmanager
 from datetime import datetime
 
-from fastapi import FastAPI, File, UploadFile, HTTPException, Header, Depends, Query, Form
-from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi import FastAPI, File, UploadFile, HTTPException, Header, Depends, Query, Form, Request
+from fastapi.responses import JSONResponse, StreamingResponse, Response
 from pydantic import BaseModel, Field
 from sqlalchemy import text
+from prometheus_client import Counter, Histogram, Gauge, generate_latest, CONTENT_TYPE_LATEST
 
 from .config import get_settings
 from .models import (
@@ -49,10 +50,75 @@ db_manager = get_db_manager()
 minio_manager = get_minio_manager()
 file_validator = FileValidator(settings.max_file_size_bytes, settings.supported_file_types)
 
+# Prometheus metrics
+REQUEST_COUNT = Counter(
+    'ingestion_http_requests_total', 
+    'Total HTTP requests', 
+    ['method', 'endpoint', 'status_code', 'tenant_id']
+)
+
+REQUEST_DURATION = Histogram(
+    'ingestion_http_request_duration_seconds', 
+    'HTTP request duration in seconds', 
+    ['method', 'endpoint', 'tenant_id'],
+    buckets=[0.1, 0.5, 1.0, 2.5, 5.0, 10.0, 30.0, 60.0, 120.0, 300.0]
+)
+
+REQUEST_SIZE = Histogram(
+    'ingestion_http_request_size_bytes',
+    'HTTP request size in bytes',
+    ['method', 'endpoint', 'tenant_id'],
+    buckets=[1024, 10240, 102400, 1048576, 10485760, 104857600]  # 1KB to 100MB
+)
+
+RESPONSE_SIZE = Histogram(
+    'ingestion_http_response_size_bytes',
+    'HTTP response size in bytes',
+    ['method', 'endpoint', 'tenant_id'],
+    buckets=[1024, 10240, 102400, 1048576, 10485760, 104857600]
+)
+
+UPLOAD_COUNT = Counter(
+    'ingestion_uploads_total',
+    'Total file uploads',
+    ['tenant_id', 'file_type', 'status']
+)
+
+UPLOAD_DURATION = Histogram(
+    'ingestion_upload_duration_seconds',
+    'File upload duration in seconds',
+    ['tenant_id', 'file_type'],
+    buckets=[0.1, 0.5, 1.0, 2.5, 5.0, 10.0, 30.0, 60.0, 120.0, 300.0]
+)
+
+UPLOAD_SIZE = Histogram(
+    'ingestion_upload_size_bytes',
+    'File upload size in bytes',
+    ['tenant_id', 'file_type'],
+    buckets=[1024, 10240, 102400, 1048576, 10485760, 104857600]
+)
+
+SERVICE_HEALTH = Gauge(
+    'ingestion_service_health_status',
+    'Service health status (1=healthy, 0=unhealthy)',
+    ['component']
+)
+
+SERVICE_UPTIME = Gauge(
+    'ingestion_service_uptime_seconds',
+    'Service uptime in seconds'
+)
+
+# Track service start time - will be set when app starts
+SERVICE_START_TIME = None
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Initialize and cleanup resources."""
+    global SERVICE_START_TIME
+    SERVICE_START_TIME = time.time()  # Set actual start time when app starts
+    
     logger.info("Starting Ingestion Service...")
     
     # Test database connection
@@ -135,6 +201,61 @@ app = FastAPI(
         }
     ]
 )
+
+# Metrics middleware
+@app.middleware("http")
+async def metrics_middleware(request: Request, call_next):
+    """Middleware to collect HTTP request metrics."""
+    start_time = time.time()
+    
+    # Extract tenant ID from headers
+    tenant_id = request.headers.get("X-Tenant-ID", "unknown")
+    
+    # Get request size
+    request_size = 0
+    if hasattr(request, '_body') and request._body:
+        request_size = len(request._body)
+    
+    # Process request
+    response = await call_next(request)
+    
+    # Calculate duration
+    duration = time.time() - start_time
+    
+    # Get response size
+    response_size = 0
+    if hasattr(response, 'body') and response.body:
+        response_size = len(response.body)
+    
+    # Record metrics
+    REQUEST_COUNT.labels(
+        method=request.method,
+        endpoint=request.url.path,
+        status_code=response.status_code,
+        tenant_id=tenant_id
+    ).inc()
+    
+    REQUEST_DURATION.labels(
+        method=request.method,
+        endpoint=request.url.path,
+        tenant_id=tenant_id
+    ).observe(duration)
+    
+    if request_size > 0:
+        REQUEST_SIZE.labels(
+            method=request.method,
+            endpoint=request.url.path,
+            tenant_id=tenant_id
+        ).observe(request_size)
+    
+    if response_size > 0:
+        RESPONSE_SIZE.labels(
+            method=request.method,
+            endpoint=request.url.path,
+            tenant_id=tenant_id
+        ).observe(response_size)
+    
+    return response
 
 # Configure JSON encoder to handle datetime objects
 class DateTimeEncoder(json.JSONEncoder):
@@ -253,24 +374,43 @@ async def health_check():
 @app.get("/metrics")
 async def get_metrics():
     """
-    Simple metrics endpoint for basic service monitoring.
+    Prometheus metrics endpoint for service monitoring.
     
-    Returns basic service information in Prometheus text format.
+    Returns comprehensive metrics in Prometheus text format.
     """
     try:
-        # Basic service metrics
-        metrics_text = f"""# HELP ingestion_service_info Service information
-# TYPE ingestion_service_info gauge
-ingestion_service_info{{service="ingestion-service",version="1.0.0"}} 1
-
-# HELP ingestion_service_uptime_seconds Service uptime in seconds
-# TYPE ingestion_service_uptime_seconds gauge
-ingestion_service_uptime_seconds {int(time.time())}
-"""
+        # Update uptime metric
+        if SERVICE_START_TIME is not None:
+            SERVICE_UPTIME.set(time.time() - SERVICE_START_TIME)
+        else:
+            SERVICE_UPTIME.set(0)
         
-        return StreamingResponse(
-            io.StringIO(metrics_text),
-            media_type="text/plain; version=0.0.4; charset=utf-8"
+        # Update health metrics
+        try:
+            with db_manager.get_session() as session:
+                session.execute(text("SELECT 1"))
+            SERVICE_HEALTH.labels(component="database").set(1)
+        except Exception:
+            SERVICE_HEALTH.labels(component="database").set(0)
+        
+        try:
+            minio_manager.test_connection()
+            SERVICE_HEALTH.labels(component="minio").set(1)
+        except Exception:
+            SERVICE_HEALTH.labels(component="minio").set(0)
+        
+        try:
+            celery_app.control.inspect().ping()
+            SERVICE_HEALTH.labels(component="redis").set(1)
+        except Exception:
+            SERVICE_HEALTH.labels(component="redis").set(0)
+        
+        # Generate all metrics
+        metrics_data = generate_latest()
+        
+        return Response(
+            metrics_data,
+            media_type=CONTENT_TYPE_LATEST
         )
         
     except Exception as e:
@@ -440,6 +580,23 @@ async def upload_file(
         processing_time_ms = (time.time() - start_time) * 1000
         log_upload_stats(file.filename, file_size, tenant_id, processing_time_ms, True)
         
+        # Record upload metrics
+        UPLOAD_COUNT.labels(
+            tenant_id=tenant_id,
+            file_type=file_type,
+            status="success"
+        ).inc()
+        
+        UPLOAD_DURATION.labels(
+            tenant_id=tenant_id,
+            file_type=file_type
+        ).observe(processing_time_ms / 1000.0)
+        
+        UPLOAD_SIZE.labels(
+            tenant_id=tenant_id,
+            file_type=file_type
+        ).observe(file_size)
+        
         logger.info(
             f"Successfully uploaded {file.filename}: "
             f"document_id={document_id}, processing started"
@@ -464,6 +621,13 @@ async def upload_file(
     except Exception as e:
         processing_time_ms = (time.time() - start_time) * 1000
         log_upload_stats(file.filename, file_size, tenant_id, processing_time_ms, False)
+        
+        # Record failed upload metrics
+        UPLOAD_COUNT.labels(
+            tenant_id=tenant_id,
+            file_type="unknown",
+            status="error"
+        ).inc()
         
         logger.error(f"Upload error: {e}", exc_info=True)
         raise HTTPException(
