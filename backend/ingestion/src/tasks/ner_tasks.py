@@ -15,6 +15,7 @@ from ..celery_app import celery_app, RETRY_POLICIES
 from ..database import get_db_manager
 from ..models import ProcessingStatus
 from ..config import get_settings
+from ..redis_client import redis_client
 
 logger = logging.getLogger(__name__)
 
@@ -115,56 +116,34 @@ def process_document_ner(
         
         logger.info(f"NER processing completed for document {document_id}")
         
-        # Update Qdrant with NER entities
+        # Publish NER completion event
         try:
-            async def update_qdrant_metadata():
-                async with httpx.AsyncClient(timeout=30.0) as client:
-                    # Get current document metadata from database
-                    with db_manager.get_session() as session:
-                        document = db_manager.get_document(session, document_id)
-                        if not document:
-                            return
-                        
-                        # Prepare metadata for Qdrant update
-                        metadata = {
-                            "filename": document.filename,
-                            "content_type": document.content_type,
-                            "file_type": document.file_type,
-                            "file_size_bytes": document.file_size_bytes,
-                            "upload_timestamp": document.upload_timestamp.isoformat() if document.upload_timestamp else None,
-                            "created_by": document.created_by,
-                            "processing_status": document.processing_status,
-                            "ocr_status": document.ocr_status,
-                            "ner_status": document.ner_status,
-                            "embedding_status": document.embedding_status,
-                            "tags": document.tags or [],
-                            "description": document.description,
-                            "ner_entities": document.ner_entities or []
-                        }
-                    
-                    payload = {
+            with db_manager.get_session() as session:
+                document = db_manager.get_document(session, document_id)
+                if not document:
+                    logger.warning(f"Document {document_id} not found for event publishing")
+                    return {
                         "document_id": document_id,
-                        "metadata": metadata
+                        "task_id": task_id,
+                        "status": "completed",
                     }
-                    
-                    headers = {
-                        "X-Tenant-ID": tenant_id
-                    }
-                    
-                    response = await client.put(
-                        f"{settings.embedding_service_url}/update-metadata",
-                        json=payload,
-                        headers=headers
-                    )
-                    
-                    if response.status_code == 200:
-                        logger.info(f"Updated Qdrant metadata for document {document_id}")
-                    else:
-                        logger.warning(f"Failed to update Qdrant metadata: {response.status_code} - {response.text}")
-            
-            asyncio.run(update_qdrant_metadata())
+                
+                # Publish NER completion event
+                event_data = {
+                    "event_type": "NER_COMPLETED",
+                    "document_id": document_id,
+                    "tenant_id": tenant_id,
+                    "ner_entities": document.ner_entities or [],
+                    "ner_status": document.ner_status,
+                    "processing_status": document.processing_status,
+                    "timestamp": document.updated_at.isoformat() if document.updated_at else None
+                }
+                
+                redis_client.publish_event("ner_events", event_data)
+                logger.info(f"Published NER completion event for document {document_id}")
+                
         except Exception as e:
-            logger.warning(f"Failed to update Qdrant metadata for document {document_id}: {e}")
+            logger.warning(f"Failed to publish NER completion event for document {document_id}: {e}")
         
         # Check if all processing is complete
         check_processing_completion.delay(document_id, tenant_id)

@@ -75,6 +75,11 @@ class Settings(BaseSettings):
     cache_ttl_seconds: int = 3600
     redis_url: Optional[str] = "redis://localhost:6379"
     
+    # Redis Event Settings
+    redis_host: str = "redis"
+    redis_port: int = 6379
+    redis_db: int = 0
+    
     # Celery Settings
     celery_broker_url: str = "redis://localhost:6379/0"
     celery_result_backend: str = "redis://localhost:6379/0"

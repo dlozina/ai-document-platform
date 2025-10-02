@@ -21,7 +21,8 @@ celery_app = Celery(
         "src.tasks.ocr_tasks",
         "src.tasks.ner_tasks", 
         "src.tasks.embedding_tasks",
-        "src.tasks.completion_tasks"
+        "src.tasks.completion_tasks",
+        "src.tasks.ner_event_consumers"
     ]
 )
 
