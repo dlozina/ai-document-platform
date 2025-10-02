@@ -111,7 +111,7 @@ app = FastAPI(
 from .models import (
     EmbeddingResponse, SearchResponse, HealthResponse, ErrorResponse,
     EmbeddingRequest, SearchRequest, BatchEmbeddingRequest, BatchEmbeddingResponse,
-    CollectionInfo, AsyncJobResponse
+    CollectionInfo, AsyncJobResponse, UpdateMetadataRequest
 )
 
 
@@ -460,6 +460,45 @@ async def delete_embedding(point_id: str):
             raise HTTPException(status_code=404, detail=f"Embedding {point_id} not found")
     except Exception as e:
         logger.error(f"Failed to delete embedding {point_id}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.put("/update-metadata", response_model=dict)
+async def update_metadata(
+    request: UpdateMetadataRequest,
+    tenant_id: Optional[str] = Header(None, alias="X-Tenant-ID")
+):
+    """
+    Update metadata for an existing embedding in Qdrant.
+    
+    **Parameters:**
+    - **document_id**: Document identifier (required)
+    - **metadata**: Updated metadata dictionary (required)
+    - **X-Tenant-ID**: Tenant identifier (header)
+    
+    **Returns:**
+    - Success confirmation
+    """
+    if not embedding_processor:
+        raise HTTPException(status_code=503, detail="Embedding service not initialized")
+    
+    try:
+        logger.info(f"Updating metadata for document: {request.document_id}")
+        
+        # Add tenant_id to metadata if provided
+        metadata = request.metadata.copy()
+        if tenant_id:
+            metadata["tenant_id"] = tenant_id
+        
+        success = embedding_processor.update_metadata(request.document_id, metadata)
+        
+        if success:
+            return {"message": f"Metadata updated successfully for document {request.document_id}"}
+        else:
+            raise HTTPException(status_code=404, detail=f"Document {request.document_id} not found in Qdrant")
+            
+    except Exception as e:
+        logger.error(f"Failed to update metadata for document {request.document_id}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 

@@ -263,7 +263,20 @@ async def query_documents(
             raise HTTPException(status_code=400, detail=f"Invalid query mode: {request.mode}")
         
         # Extract entities from query and results
-        detected_entities = query_processor.extract_entities(request.query)
+        query_entities = query_processor.extract_entities(request.query)
+        result_entities = query_processor.collect_entities_from_results(search_results)
+        
+        # Combine and deduplicate entities
+        all_entities = query_entities.copy()
+        seen_entities = {(e["text"].lower(), e["label"]) for e in query_entities}
+        
+        for entity in result_entities:
+            entity_key = (entity["text"].lower(), entity["label"])
+            if entity_key not in seen_entities:
+                seen_entities.add(entity_key)
+                all_entities.append(entity)
+        
+        detected_entities = all_entities
         
         # Format source documents
         sources = []
@@ -367,11 +380,26 @@ async def semantic_search(
                 "metadata": result.get("metadata", {})
             })
         
+        # Extract entities from query and results for semantic search
+        query_entities = query_processor.extract_entities(request.query)
+        result_entities = query_processor.collect_entities_from_results(results)
+        
+        # Combine and deduplicate entities
+        all_entities = query_entities.copy()
+        seen_entities = {(e["text"].lower(), e["label"]) for e in query_entities}
+        
+        for entity in result_entities:
+            entity_key = (entity["text"].lower(), entity["label"])
+            if entity_key not in seen_entities:
+                seen_entities.add(entity_key)
+                all_entities.append(entity)
+        
         return SemanticSearchResponse(
             query=request.query,
             results=formatted_results,
             total_results=len(formatted_results),
-            search_time_ms=search_time
+            search_time_ms=search_time,
+            detected_entities=all_entities
         )
         
     except Exception as e:
@@ -459,7 +487,20 @@ async def question_answering(
             raise HTTPException(status_code=400, detail=f"Invalid QA mode: {request.mode}")
         
         # Extract entities from question and results
-        detected_entities = query_processor.extract_entities(request.question)
+        query_entities = query_processor.extract_entities(request.question)
+        result_entities = query_processor.collect_entities_from_results(search_results)
+        
+        # Combine and deduplicate entities
+        all_entities = query_entities.copy()
+        seen_entities = {(e["text"].lower(), e["label"]) for e in query_entities}
+        
+        for entity in result_entities:
+            entity_key = (entity["text"].lower(), entity["label"])
+            if entity_key not in seen_entities:
+                seen_entities.add(entity_key)
+                all_entities.append(entity)
+        
+        detected_entities = all_entities
         
         # Format source documents
         sources = []

@@ -313,6 +313,26 @@ class QueryProcessor:
             logger.warning(f"Entity extraction failed: {e}")
             return []
     
+    def collect_entities_from_results(self, results: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Collect NER entities from retrieved document results."""
+        all_entities = []
+        seen_entities = set()  # To avoid duplicates
+        
+        for result in results:
+            doc_entities = result.get("metadata", {}).get("ner_entities", [])
+            for entity in doc_entities:
+                # Create a unique key for deduplication
+                entity_key = f"{entity.get('text', '').lower()}_{entity.get('label', '')}"
+                if entity_key not in seen_entities:
+                    seen_entities.add(entity_key)
+                    all_entities.append({
+                        "text": entity.get("text", ""),
+                        "label": entity.get("label", ""),
+                        "confidence": entity.get("confidence", 0.8)
+                    })
+        
+        return all_entities
+    
     def filter_by_entities(
         self,
         results: List[Dict[str, Any]],

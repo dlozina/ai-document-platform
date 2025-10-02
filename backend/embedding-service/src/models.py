@@ -72,6 +72,12 @@ class BatchEmbeddingRequest(BaseModel):
     metadata: Optional[List[Dict[str, Any]]] = Field(None, description="List of metadata objects")
 
 
+class UpdateMetadataRequest(BaseModel):
+    """Request model for updating Qdrant metadata."""
+    document_id: str = Field(..., description="Document identifier")
+    metadata: Dict[str, Any] = Field(..., description="Updated metadata")
+
+
 class BatchEmbeddingResponse(BaseModel):
     """Response model for batch embedding generation."""
     embeddings: List[List[float]] = Field(..., description="List of embedding vectors")

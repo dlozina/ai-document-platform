@@ -407,6 +407,40 @@ class EmbeddingProcessor:
             logger.error(f"Failed to delete embedding {point_id}: {e}")
             return False
     
+    def update_metadata(self, document_id: str, metadata: Dict[str, Any]) -> bool:
+        """
+        Update metadata for an existing embedding in Qdrant.
+        
+        Args:
+            document_id: Document identifier
+            metadata: Updated metadata dictionary
+            
+        Returns:
+            True if update was successful, False otherwise
+        """
+        try:
+            import uuid
+            
+            # Convert document_id to UUID format (same logic as store_embedding)
+            if len(document_id) == 36 and document_id.count('-') == 4:
+                point_id = uuid.UUID(document_id)
+            else:
+                point_id = uuid.uuid5(uuid.NAMESPACE_DNS, document_id)
+            
+            # Update metadata in Qdrant
+            self.qdrant_client.set_payload(
+                collection_name=self.collection_name,
+                payload=metadata,
+                points=[str(point_id)]
+            )
+            
+            logger.info(f"Updated metadata for document: {document_id}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Failed to update metadata for document {document_id}: {e}")
+            return False
+    
     def health_check(self) -> Dict[str, Any]:
         """Check health of embedding processor and dependencies."""
         health_status = {

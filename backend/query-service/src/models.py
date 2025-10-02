@@ -101,6 +101,7 @@ class SemanticSearchResponse(BaseModel):
     results: List[SourceDocument] = Field(..., description="Search results")
     total_results: int = Field(..., description="Total number of results")
     search_time_ms: float = Field(..., description="Search time in milliseconds")
+    detected_entities: List[DetectedEntity] = Field(default_factory=list, description="Detected entities")
 
 
 class QARequest(BaseModel):
