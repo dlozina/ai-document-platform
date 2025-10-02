@@ -150,10 +150,10 @@ services:
     networks:
       - backend-network
 
-  # Celery Worker
+  # Main Processing Workers (OCR, NER, Embedding)
   celery-worker:
     build: ./ingestion
-    command: celery -A src.celery_app worker --loglevel=info --concurrency=3
+    command: celery -A src.celery_app worker --loglevel=info --concurrency=3 --queues=ocr_queue,ner_queue,embedding_queue,completion_queue,dead_letter_queue --hostname=worker@%h
     environment:
       - LOG_LEVEL=INFO
       - DATABASE_URL=postgresql://postgres:password@postgres:5432/ingestion_db
@@ -181,6 +181,8 @@ services:
       replicas: 2  # Run 2 worker instances
     networks:
       - backend-network
+
+  # Celery Beat removed - using direct Celery chain approach
 
   # Flower (Celery Monitoring)
   flower:
@@ -240,6 +242,8 @@ services:
     command: redis-server --appendonly yes
     networks:
       - backend-network
+
+  # Monitoring Services removed - using direct Celery chain approach
 
 volumes:
   postgres_data:

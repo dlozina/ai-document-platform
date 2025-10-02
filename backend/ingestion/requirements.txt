@@ -38,5 +38,4 @@ pytest-asyncio==0.24.0
 # Development and debugging
 python-dotenv==1.0.1
 
-# Optional: Monitoring and metrics
-prometheus-client==0.21.1
+# Monitoring removed - using direct Celery chain approach

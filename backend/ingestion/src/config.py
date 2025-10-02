@@ -23,12 +23,12 @@ class Settings(BaseSettings):
     workers: int = 4
     
     # Database Settings (PostgreSQL)
-    database_url: str = "postgresql://postgres:password@localhost:5432/ingestion_db"
+    database_url: str = "postgresql://postgres:password@postgres:5432/ingestion_db"
     database_pool_size: int = 10
     database_max_overflow: int = 20
     
     # MinIO Object Storage Settings
-    minio_endpoint: str = "localhost:9000"
+    minio_endpoint: str = "minio:9000"
     minio_access_key: str = "minioadmin"
     minio_secret_key: str = "minioadmin"
     minio_secure: bool = False
@@ -59,9 +59,9 @@ class Settings(BaseSettings):
     enable_ocr_processing: bool = True
     enable_ner_processing: bool = True
     enable_embedding_processing: bool = True
-    ocr_service_url: str = "http://localhost:8000"
-    ner_service_url: str = "http://localhost:8001"
-    embedding_service_url: str = "http://localhost:8002"
+    ocr_service_url: str = "http://ocr-service:8000"
+    ner_service_url: str = "http://ner-service:8001"
+    embedding_service_url: str = "http://embedding-service:8002"
     
     # Security Settings
     enable_cors: bool = True
@@ -73,16 +73,16 @@ class Settings(BaseSettings):
     # Performance Settings
     enable_caching: bool = False
     cache_ttl_seconds: int = 3600
-    redis_url: Optional[str] = "redis://localhost:6379"
+    redis_url: Optional[str] = "redis://redis:6379/0"
     
     # Redis Event Settings
-    redis_host: str = "redis"
+    redis_host: str = "redis"  # Docker service name
     redis_port: int = 6379
     redis_db: int = 0
     
     # Celery Settings
-    celery_broker_url: str = "redis://localhost:6379/0"
-    celery_result_backend: str = "redis://localhost:6379/0"
+    celery_broker_url: str = "redis://redis:6379/0"
+    celery_result_backend: str = "redis://redis:6379/0"
     celery_worker_concurrency: int = 3
     celery_task_time_limit: int = 300
     celery_task_soft_time_limit: int = 240

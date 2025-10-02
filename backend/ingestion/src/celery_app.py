@@ -21,8 +21,7 @@ celery_app = Celery(
         "src.tasks.ocr_tasks",
         "src.tasks.ner_tasks", 
         "src.tasks.embedding_tasks",
-        "src.tasks.completion_tasks",
-        "src.tasks.ner_event_consumers"
+        "src.tasks.completion_tasks"
     ]
 )
 
@@ -123,7 +122,7 @@ DEAD_LETTER_QUEUE_CONFIG = {
     "routing_key": "dead_letter",
 }
 
-# Monitoring configuration
+# Monitoring configuration (simplified)
 MONITORING_CONFIG = {
     "flower_port": 5555,
     "flower_basic_auth": "admin:admin",  # Change in production
@@ -170,7 +169,7 @@ celery_app.conf.update(LOGGING_CONFIG)
 
 # Task result configuration
 RESULT_CONFIG = {
-    "result_backend": f"redis://{settings.redis_url or 'localhost:6379/0'}",
+    "result_backend": settings.redis_url or "redis://localhost:6379/0",
     "result_expires": 3600,  # 1 hour
     "result_persistent": True,
     "result_compression": "gzip",
@@ -209,6 +208,9 @@ else:
         "worker_prefetch_multiplier": 1,
         "task_acks_late": True,
     })
+
+# Celery Beat configuration (currently not used)
+# celery_app.conf.beat_schedule = {}
 
 # Export the app for use in other modules
 __all__ = ["celery_app", "RETRY_POLICIES", "TASK_PRIORITIES", "MONITORING_CONFIG"]

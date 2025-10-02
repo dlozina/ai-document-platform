@@ -29,19 +29,24 @@ logger = logging.getLogger(__name__)
 )
 def process_document_embedding(
     self,
-    document_id: str,
-    tenant_id: str
+    ner_result: Dict[str, Any]
 ) -> Dict[str, Any]:
     """
     Process document through Embedding service.
     
     Args:
-        document_id: Document identifier
-        tenant_id: Tenant identifier
+        ner_result: Result from NER task containing document_id, tenant_id, etc.
         
     Returns:
         Processing result dictionary
     """
+    # Extract document_id and tenant_id from NER result
+    document_id = ner_result.get("document_id")
+    tenant_id = ner_result.get("tenant_id")
+    
+    if not document_id or not tenant_id:
+        raise ValueError(f"Missing document_id or tenant_id in NER result: {ner_result}")
+    
     task_id = self.request.id
     logger.info(f"Starting Embedding processing task {task_id} for document {document_id}")
     

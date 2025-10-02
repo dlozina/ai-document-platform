@@ -123,8 +123,12 @@ def process_document_ocr(
         
         logger.info(f"OCR processing completed for document {document_id}")
         
-        # Trigger next processing steps
-        trigger_next_processing.delay(document_id, tenant_id)
+        # Trigger next processing steps (NER and Embedding) directly
+        try:
+            trigger_result = trigger_next_processing.delay(document_id, tenant_id)
+            logger.info(f"Triggered next processing for document {document_id}: {trigger_result.id}")
+        except Exception as e:
+            logger.warning(f"Failed to trigger next processing for document {document_id}: {e}")
         
         return {
             "document_id": document_id,
@@ -205,17 +209,24 @@ def trigger_next_processing(document_id: str, tenant_id: str) -> Dict[str, Any]:
         from .ner_tasks import process_document_ner
         from .embedding_tasks import process_document_embedding
         
-        # Start NER and Embedding processing in parallel
-        ner_task = process_document_ner.delay(document_id, tenant_id)
-        embedding_task = process_document_embedding.delay(document_id, tenant_id)
+        # Use Celery chain to ensure NER completes before Embedding starts
+        from celery import chain
         
-        logger.info(f"Started NER task {ner_task.id} and Embedding task {embedding_task.id} for document {document_id}")
+        # Create a chain: NER -> Embedding
+        processing_chain = chain(
+            process_document_ner.s(document_id, tenant_id),
+            process_document_embedding.s()
+        )
+        
+        # Execute the chain
+        chain_result = processing_chain.apply_async()
+        logger.info(f"Started sequential processing chain for document {document_id}: NER -> Embedding")
         
         return {
             "document_id": document_id,
-            "ner_task_id": ner_task.id,
-            "embedding_task_id": embedding_task.id,
-            "status": "triggered"
+            "chain_id": chain_result.id,
+            "status": "triggered",
+            "message": "Sequential processing chain started: NER -> Embedding"
         }
         
     except Exception as exc:

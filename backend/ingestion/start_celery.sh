@@ -24,7 +24,7 @@ celery -A src.celery_app worker \
     --max-memory-per-child=200000 \
     --time-limit=300 \
     --soft-time-limit=240 \
-    --queues=ocr_queue,ner_queue,embedding_queue,completion_queue,dead_letter_queue \
+    --queues=ocr_queue,ner_queue,embedding_queue,completion_queue,dead_letter_queue,ocr_event_queue,ner_event_queue \
     --hostname=worker@%h \
     --detach
 

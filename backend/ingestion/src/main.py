@@ -28,6 +28,7 @@ from .database import get_db_manager, get_db_session, ProcessingJob
 from .storage import get_minio_manager
 from .celery_app import celery_app
 from .tasks.ocr_tasks import process_document_ocr
+# Redis client removed - using direct Celery chain approach
 from .utils import (
     FileValidator, TenantQuotaChecker, calculate_file_hash, 
     detect_file_type, generate_storage_path, generate_document_id,
@@ -247,6 +248,70 @@ async def health_check():
         minio_connected=minio_connected,
         dependencies=dependencies
     )
+
+
+@app.get("/metrics")
+async def get_metrics():
+    """
+    Simple metrics endpoint for basic service monitoring.
+    
+    Returns basic service information in Prometheus text format.
+    """
+    try:
+        # Basic service metrics
+        metrics_text = f"""# HELP ingestion_service_info Service information
+# TYPE ingestion_service_info gauge
+ingestion_service_info{{service="ingestion-service",version="1.0.0"}} 1
+
+# HELP ingestion_service_uptime_seconds Service uptime in seconds
+# TYPE ingestion_service_uptime_seconds gauge
+ingestion_service_uptime_seconds {int(time.time())}
+"""
+        
+        return StreamingResponse(
+            io.StringIO(metrics_text),
+            media_type="text/plain; version=0.0.4; charset=utf-8"
+        )
+        
+    except Exception as e:
+        logger.error(f"Failed to get metrics: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to get metrics: {str(e)}")
+
+
+@app.get("/events/health")
+async def events_health_check():
+    """
+    Event processing health check endpoint.
+    
+    Returns detailed health information about event processing infrastructure.
+    """
+    try:
+        # Get Celery worker status
+        try:
+            inspect = celery_app.control.inspect()
+            workers = inspect.active()
+            celery_healthy = workers is not None
+        except Exception:
+            celery_healthy = False
+            workers = None
+        
+        return {
+            "status": "healthy" if celery_healthy else "degraded",
+            "celery": {
+                "healthy": celery_healthy,
+                "active_workers": len(workers) if workers else 0,
+                "workers": list(workers.keys()) if workers else []
+            },
+            "timestamp": datetime.utcnow().isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"Event health check failed: {e}")
+        return {
+            "status": "unhealthy",
+            "error": str(e),
+            "timestamp": datetime.utcnow().isoformat()
+        }
 
 
 @app.post("/upload", response_model=UploadResponse)
