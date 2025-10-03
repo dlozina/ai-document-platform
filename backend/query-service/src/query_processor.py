@@ -244,17 +244,44 @@ class QueryProcessor:
                 with_vectors=False
             )
             
-            # Format results
+            # Format results with chunk awareness
             results = []
             for result in search_results:
-                results.append({
-                    "id": result.id,
-                    "score": result.score,
-                    "text": result.payload.get("text", ""),
-                    "document_id": result.payload.get("original_document_id"),  # Fixed field name
-                    "filename": result.payload.get("filename", ""),
-                    "metadata": result.payload
-                })
+                # Check if this is a chunked result
+                chunk_id = result.payload.get("chunk_id")
+                chunk_index = result.payload.get("chunk_index")
+                total_chunks = result.payload.get("total_chunks")
+                
+                if chunk_id and chunk_index is not None:
+                    # This is a chunked result
+                    results.append({
+                        "id": result.id,
+                        "score": result.score,
+                        "text": result.payload.get("text", ""),
+                        "document_id": result.payload.get("original_document_id"),
+                        "filename": result.payload.get("filename", ""),
+                        "chunk_id": chunk_id,
+                        "chunk_index": chunk_index,
+                        "total_chunks": total_chunks,
+                        "chunk_type": result.payload.get("chunk_type", "unknown"),
+                        "is_chunked": True,
+                        "metadata": result.payload
+                    })
+                else:
+                    # This is a legacy single-document result
+                    results.append({
+                        "id": result.id,
+                        "score": result.score,
+                        "text": result.payload.get("text", ""),
+                        "document_id": result.payload.get("original_document_id"),
+                        "filename": result.payload.get("filename", ""),
+                        "chunk_id": None,
+                        "chunk_index": None,
+                        "total_chunks": 1,
+                        "chunk_type": "single",
+                        "is_chunked": False,
+                        "metadata": result.payload
+                    })
             
             return results
             

@@ -14,7 +14,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 import uvicorn
 
-from .embedding_processor import EmbeddingProcessor
+from .enhanced_embedding_processor import EnhancedEmbeddingProcessor
 from .config import get_settings
 
 # Configure logging
@@ -25,7 +25,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Global embedding processor instance
-embedding_processor: Optional[EmbeddingProcessor] = None
+embedding_processor: Optional[EnhancedEmbeddingProcessor] = None
 settings = get_settings()
 
 
@@ -34,14 +34,16 @@ async def lifespan(app: FastAPI):
     """Initialize and cleanup resources."""
     global embedding_processor
     
-    logger.info("Starting Embedding Service...")
-    embedding_processor = EmbeddingProcessor(
+    logger.info("Starting Embedding Service with chunking...")
+    embedding_processor = EnhancedEmbeddingProcessor(
         model_name=settings.embedding_model,
         qdrant_host=settings.qdrant_host,
         qdrant_port=settings.qdrant_port,
         qdrant_api_key=settings.qdrant_api_key,
         collection_name=settings.qdrant_collection_name,
-        vector_size=settings.qdrant_vector_size
+        vector_size=settings.qdrant_vector_size,
+        chunk_size=1000,  # 1000 characters per chunk
+        chunk_overlap=200  # 200 character overlap
     )
     logger.info("Embedding Service ready")
     
@@ -194,23 +196,29 @@ async def generate_embedding(
     try:
         logger.info(f"Generating embedding for text (length: {len(request.text)}, tenant: {tenant_id})")
         
-        # Generate embedding
-        embedding = embedding_processor.generate_embedding(request.text)
+        # Process document with chunking
+        doc_id = request.document_id or document_id
+        metadata = request.metadata or {}
+        if tenant_id:
+            metadata["tenant_id"] = tenant_id
         
-        # Store in Qdrant if document_id provided
-        point_id = None
-        if request.document_id or document_id:
-            doc_id = request.document_id or document_id
-            metadata = request.metadata or {}
-            if tenant_id:
-                metadata["tenant_id"] = tenant_id
-            
-            point_id = embedding_processor.store_embedding(
+        if doc_id:
+            # Use chunked processing for documents
+            result = embedding_processor.process_document_with_chunking(
                 text=request.text,
-                embedding=embedding,
                 document_id=doc_id,
+                filename=metadata.get("filename", "text_input"),
                 metadata=metadata
             )
+            
+            # Return info about the first chunk for backward compatibility
+            first_chunk = result["chunk_results"][0] if result["chunk_results"] else None
+            embedding = embedding_processor.generate_embedding(request.text[:512])  # Generate embedding for response
+            point_id = first_chunk["point_id"] if first_chunk else None
+        else:
+            # For text-only requests without document_id, use simple embedding
+            embedding = embedding_processor.generate_embedding(request.text)
+            point_id = None
         
         return EmbeddingResponse(
             document_id=request.document_id or document_id,
@@ -331,8 +339,8 @@ async def search_similar(
         if tenant_id:
             filter_conditions["tenant_id"] = tenant_id
         
-        # Perform search
-        results = embedding_processor.search_similar(
+        # Perform chunked search
+        results = embedding_processor.search_similar_chunks(
             query=request.query,
             limit=request.limit,
             score_threshold=request.score_threshold,

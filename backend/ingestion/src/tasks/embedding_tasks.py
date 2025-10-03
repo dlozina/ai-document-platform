@@ -134,15 +134,24 @@ def process_document_embedding(
         
         # Update document with embedding results
         with db_manager.get_session() as session:
+            # For chunked documents, we don't store a single embedding vector
+            # Instead, we store metadata about the chunking
+            embedding_metadata = {
+                "chunked": True,
+                "total_chunks": embedding_result.get("total_chunks", 1),
+                "processing_time_ms": embedding_result.get("processing_time_ms", 0),
+                "method": embedding_result.get("method", "chunked_embedding")
+            }
+            
             db_manager.update_document(session, document_id, {
-                "embedding_vector": embedding_result.get("embedding", []),
+                "embedding_vector": embedding_metadata,  # Store chunking metadata instead of single vector
                 "embedding_status": ProcessingStatus.COMPLETED
             })
             
             # Update processing job
             db_manager.update_processing_job(session, task_id, {
                 "status": ProcessingStatus.COMPLETED,
-                "message": f"Embedding completed: {len(embedding_result.get('embedding', []))} dimensions"
+                "message": f"Embedding completed: {embedding_result.get('total_chunks', 1)} chunks created"
             })
         
         logger.info(f"Embedding processing completed for document {document_id}")

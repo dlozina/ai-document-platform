@@ -239,20 +239,33 @@ class LLMManager:
     ) -> tuple[str, float]:
         """Generate a RAG answer using the LLM."""
         try:
-            # Prepare context
+            from .smart_context import smart_truncate_text, extract_context_around_keywords
+            
+            # Prepare context with smart truncation
             context_texts = []
             for doc in context_documents[:5]:  # Limit to top 5 documents
                 text = doc.get("text", "")
                 filename = doc.get("filename", "Unknown")
-                if len(text) > 2000:  # Increased from 500 to 2000 characters
-                    text = text[:2000] + "..."
-                context_texts.append(f"Document: {filename}\n{text}")
+                is_chunked = doc.get("is_chunked", False)
+                chunk_index = doc.get("chunk_index")
+                total_chunks = doc.get("total_chunks", 1)
+                
+                # For chunked documents, use the full chunk text (it's already relevant)
+                if is_chunked:
+                    # Add chunk context information
+                    chunk_info = f" (Chunk {chunk_index + 1} of {total_chunks})"
+                    context_texts.append(f"Document: {filename}{chunk_info}\n{text}")
+                else:
+                    # For legacy single documents, use smart truncation
+                    if len(text) > 2000:
+                        text = smart_truncate_text(text, 2000, question)
+                    context_texts.append(f"Document: {filename}\n{text}")
             
             context = "\n\n".join(context_texts)
             
-            # Truncate context if too long
+            # Apply final smart truncation if needed
             if len(context) > max_context_length:
-                context = context[:max_context_length] + "..."
+                context = smart_truncate_text(context, max_context_length, question)
             
             # Create messages
             system_prompt = """You are a helpful AI assistant that answers questions based on the provided documents. 
