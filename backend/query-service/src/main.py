@@ -53,7 +53,7 @@ app = FastAPI(
     
     ### Features:
     - **Semantic Search** using vector similarity and embeddings
-    - **Question Answering** with extractive QA and RAG modes
+    - **Question Answering** with RAG mode
     - **Advanced Filtering** by metadata, entities, dates, and more
     - **Entity Recognition** integration for enhanced search
     - **Result Reranking** for improved relevance
@@ -61,7 +61,7 @@ app = FastAPI(
     
     ### Query Modes:
     1. **Semantic Search**: Find relevant documents using vector similarity
-    2. **Extractive QA**: Extract exact answers from document text
+    2. **Extractive QA**: Extract exact answers from document text (testing only)
     3. **RAG**: Generate comprehensive answers using LLM + retrieved context
     
     ### Filtering Capabilities:
@@ -182,7 +182,7 @@ async def query_documents(
     
     **Parameters:**
     - **query**: Search query or question (required)
-    - **mode**: Query mode - semantic_search, extractive_qa, or rag
+    - **mode**: Query mode - semantic_search, extractive_qa (testing), or rag
     - **top_k**: Number of documents to retrieve (default: 10)
     - **score_threshold**: Minimum similarity score (0-1)
     - **filter**: Filter parameters (metadata, entities, dates, etc.)
@@ -416,11 +416,11 @@ async def question_answering(
     tenant_id: Optional[str] = Header(None, alias="X-Tenant-ID")
 ):
     """
-    Question-answering endpoint with extractive QA and RAG modes.
+    Question-answering endpoint with RAG mode.
     
     **Parameters:**
     - **question**: Question to answer (required)
-    - **mode**: QA mode - extractive_qa or rag
+    - **mode**: QA mode - rag (default)
     - **top_k**: Number of documents to retrieve (default: 5)
     - **filter**: Filter parameters
     - **max_context_length**: Maximum context length for LLM
@@ -460,18 +460,7 @@ async def question_answering(
             )
         
         # Process based on QA mode
-        if request.mode == QueryMode.EXTRACTIVE_QA:
-            if search_results:
-                # Extract answer from top result
-                top_doc = search_results[0]
-                answer, confidence_score = query_processor.extract_answer_span(
-                    request.question, top_doc["text"], top_doc.get("metadata")
-                )
-            else:
-                answer = "No relevant documents found to answer your question."
-                confidence_score = 0.1
-                
-        elif request.mode == QueryMode.RAG:
+        if request.mode == QueryMode.RAG:
             if search_results:
                 # Generate RAG answer (async)
                 answer, confidence_score = await query_processor.generate_rag_answer(

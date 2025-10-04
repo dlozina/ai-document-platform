@@ -107,7 +107,7 @@ class SemanticSearchResponse(BaseModel):
 class QARequest(BaseModel):
     """Question-answering request model."""
     question: str = Field(..., description="Question to answer", min_length=1, max_length=10000)
-    mode: QueryMode = Field(QueryMode.EXTRACTIVE_QA, description="QA mode")
+    mode: QueryMode = Field(QueryMode.RAG, description="QA mode")
     top_k: int = Field(5, description="Number of documents to retrieve", ge=1, le=20)
     filter: Optional[QueryFilter] = Field(None, description="Filter parameters")
     max_context_length: Optional[int] = Field(None, description="Maximum context length")

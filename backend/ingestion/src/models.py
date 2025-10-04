@@ -51,7 +51,7 @@ class DocumentMetadata(BaseModel):
     # Processing results
     ocr_text: Optional[str] = Field(None, description="Extracted text from OCR")
     ner_entities: Optional[List[Dict[str, Any]]] = Field(None, description="Named entities")
-    embedding_vector: Optional[List[float]] = Field(None, description="Document embedding vector")
+    embedding_vector: Optional[Union[List[float], Dict[str, Any]]] = Field(None, description="Document embedding vector or chunking metadata")
     
     # Metadata
     tags: List[str] = Field(default_factory=list, description="Document tags")
