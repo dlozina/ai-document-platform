@@ -11,17 +11,19 @@ from typing import Optional, List, Dict, Any
 from contextlib import asynccontextmanager
 from datetime import datetime
 
-from fastapi import FastAPI, HTTPException, Depends, Request, status
+from fastapi import FastAPI, HTTPException, Depends, Request, status, UploadFile, File
 from fastapi.responses import JSONResponse, Response
 from fastapi.middleware.cors import CORSMiddleware
 from prometheus_client import Counter, Histogram, Gauge, generate_latest, CONTENT_TYPE_LATEST
 from sqlalchemy.orm import Session
+import httpx
 
 from .config import get_settings
 from .models import (
     UserCreate, UserUpdate, User, UserListResponse, LoginRequest, 
     RefreshTokenRequest, PasswordChangeRequest, Token, HealthResponse, 
-    ErrorResponse, RateLimitResponse, ProxyRequest, ProxyResponse, UserRole
+    ErrorResponse, RateLimitResponse, ProxyRequest, ProxyResponse, UserRole,
+    UploadResponse, QueryResponse, ServiceHealthResponse, QueryRequest
 )
 from .database import user_manager, get_db, UserModel
 from .auth import (
@@ -110,31 +112,33 @@ app = FastAPI(
     description="""
     ## API Gateway with Authentication and Rate Limiting
     
-    Production-ready API gateway service providing:
-    - **JWT Authentication** with access and refresh tokens
-    - **Per-user rate limiting** with Redis backend
-    - **Service proxying** to backend microservices
-    - **User management** with role-based access control
-    - **Comprehensive monitoring** with Prometheus metrics
+    Production-ready API gateway service providing authentication, authorization, and proxy functionality for the document processing system.
     
-    ### Features:
-    - **Authentication**: JWT-based auth with password hashing
-    - **Rate Limiting**: Per-user limits with burst protection
-    - **Service Proxy**: Route requests to backend services
-    - **User Management**: CRUD operations for users
-    - **Role-based Access**: Admin, moderator, and user roles
-    - **Monitoring**: Health checks and metrics collection
+        ### User Access Levels:
+        
+        **🔓 Public Endpoints** - No authentication required
+        - User registration
+        
+        **👤 User Endpoints** - Requires user authentication
+        - File upload
+        - Question answering (QA)
+        - Personal account management
+        
+        **👑 Admin Endpoints** - Requires admin authentication
+        - User management
+        - System administration
+        - Advanced operations
     
     ### Authentication:
-    - Login with username/email and password
-    - JWT access tokens (30 min default)
-    - JWT refresh tokens (7 days default)
-    - Password change functionality
+    All protected endpoints require a valid JWT token in the Authorization header:
+    ```
+    Authorization: Bearer <your-jwt-token>
+    ```
     
-    ### Rate Limiting:
-    - Per-user limits: 60/min, 1000/hour, 10000/day
-    - Redis-backed with automatic cleanup
-    - Burst protection with configurable limits
+        ### Rate Limiting:
+        - **Upload**: 10 requests/minute
+        - **QA**: 60 requests/minute
+        - **General**: 100 requests/minute
     """,
     version="1.0.0",
     lifespan=lifespan,
@@ -155,6 +159,32 @@ app = FastAPI(
             "url": "https://api.example.com",
             "description": "Production server"
         }
+    ],
+    tags_metadata=[
+        {
+            "name": "Authentication",
+            "description": "User authentication and token management",
+            "externalDocs": {
+                "description": "JWT Authentication Guide",
+                "url": "https://jwt.io/introduction",
+            },
+        },
+        {
+            "name": "User Registration",
+            "description": "Public user registration endpoints",
+        },
+        {
+            "name": "User Operations",
+            "description": "Endpoints available to authenticated users",
+        },
+        {
+            "name": "Admin Operations",
+            "description": "Endpoints available only to admin users",
+        },
+        {
+            "name": "System",
+            "description": "System health and monitoring endpoints",
+        },
     ]
 )
 
@@ -220,39 +250,83 @@ def get_db_session():
 
 # API Endpoints
 
-@app.get("/health", response_model=HealthResponse)
+@app.get("/health", response_model=ServiceHealthResponse, tags=["System"])
 async def health_check():
     """
     Health check endpoint.
     
-    Returns service status and dependencies availability.
+    Returns the current health status and service readiness.
     """
     try:
-        # Test Redis connection
-        import redis
-        redis_client = redis.Redis.from_url(settings.redis_url, decode_responses=True)
-        redis_client.ping()
-        redis_connected = True
-    except Exception:
+        # Check Redis connection
         redis_connected = False
-    
-    dependencies = {
-        "redis": redis_connected,
-        "database": True,  # SQLite is always available
-    }
-    
-    overall_status = "healthy" if all(dependencies.values()) else "degraded"
-    
-    return HealthResponse(
-        status=overall_status,
-        service="api-gateway-service",
-        version="1.0.0",
-        redis_connected=redis_connected,
-        dependencies=dependencies
-    )
+        try:
+            import redis
+            redis_client = redis.Redis.from_url(settings.redis_url, decode_responses=True)
+            redis_client.ping()
+            redis_connected = True
+        except Exception:
+            redis_connected = False
+        
+        # Check backend services
+        services = {}
+        upload_ready = False
+        query_ready = False
+        
+        try:
+            async with httpx.AsyncClient() as client:
+                # Check ingestion service
+                response = await client.get(
+                    f"{settings.ingestion_service_url}/health", 
+                    headers={"X-Tenant-ID": "system"},  # System tenant for health checks
+                    timeout=5.0
+                )
+                services["ingestion_service"] = "healthy" if response.status_code == 200 else "unhealthy"
+                upload_ready = response.status_code == 200
+        except Exception:
+            services["ingestion_service"] = "unhealthy"
+            
+        try:
+            async with httpx.AsyncClient() as client:
+                # Check query service
+                response = await client.get(
+                    f"{settings.query_service_url}/health", 
+                    headers={"X-Tenant-ID": "system"},  # System tenant for health checks
+                    timeout=5.0
+                )
+                services["query_service"] = "healthy" if response.status_code == 200 else "unhealthy"
+                query_ready = response.status_code == 200
+        except Exception:
+            services["query_service"] = "unhealthy"
+        
+        # Determine overall status and message
+        if upload_ready and query_ready:
+            health_status = "healthy"
+            message = "Service is ready for uploading and question answering"
+        elif upload_ready:
+            health_status = "partial"
+            message = "Service is ready for uploading (QA service unavailable)"
+        elif query_ready:
+            health_status = "partial"
+            message = "Service is ready for question answering (upload service unavailable)"
+        else:
+            health_status = "unhealthy"
+            message = "Service is not ready - both upload and QA services unavailable"
+        
+        return ServiceHealthResponse(
+            status=health_status,
+            message=message,
+            services=services
+        )
+    except Exception as e:
+        logger.error(f"Health check failed: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Service unhealthy"
+        )
 
 
-@app.get("/metrics")
+@app.get("/metrics", tags=["System"])
 async def get_metrics():
     """
     Prometheus metrics endpoint for service monitoring.
@@ -292,7 +366,7 @@ async def get_metrics():
 
 # Authentication endpoints
 
-@app.post("/auth/login", response_model=Token)
+@app.post("/auth/login", response_model=Token, tags=["Authentication"])
 async def login(login_request: LoginRequest, db: Session = Depends(get_db_session)):
     """
     Login endpoint.
@@ -349,7 +423,7 @@ async def login(login_request: LoginRequest, db: Session = Depends(get_db_sessio
         )
 
 
-@app.post("/auth/refresh", response_model=Token)
+@app.post("/auth/refresh", response_model=Token, tags=["Authentication"])
 async def refresh_token(refresh_request: RefreshTokenRequest):
     """
     Refresh access token.
@@ -385,7 +459,7 @@ async def refresh_token(refresh_request: RefreshTokenRequest):
         )
 
 
-@app.get("/auth/me", response_model=User)
+@app.get("/auth/me", response_model=User, tags=["Authentication"])
 async def get_current_user_info(current_user: TokenData = Depends(get_current_user), db: Session = Depends(get_db_session)):
     """
     Get current user information.
@@ -402,7 +476,7 @@ async def get_current_user_info(current_user: TokenData = Depends(get_current_us
     return user_manager.convert_to_user(user)
 
 
-@app.post("/auth/change-password")
+@app.post("/auth/change-password", tags=["Authentication"])
 async def change_password(
     password_request: PasswordChangeRequest,
     current_user: TokenData = Depends(get_current_user),
@@ -436,7 +510,7 @@ async def change_password(
 
 # User management endpoints
 
-@app.post("/register", response_model=User)
+@app.post("/register", response_model=User, tags=["User Registration"])
 async def register_user(
     user: UserCreate,
     db: Session = Depends(get_db_session)
@@ -459,7 +533,7 @@ async def register_user(
         )
 
 
-@app.post("/admin/users", response_model=User)
+@app.post("/admin/users", response_model=User, tags=["Admin Operations"])
 async def create_admin_user(
     user: UserCreate,
     current_user: TokenData = Depends(require_role("admin")),
@@ -484,7 +558,7 @@ async def create_admin_user(
         )
 
 
-@app.get("/users", response_model=UserListResponse)
+@app.get("/users", response_model=UserListResponse, tags=["Admin Operations"])
 async def list_users(
     page: int = 1,
     page_size: int = 20,
@@ -511,7 +585,7 @@ async def list_users(
     )
 
 
-@app.get("/users/{user_id}", response_model=User)
+@app.get("/users/{user_id}", response_model=User, tags=["Admin Operations"])
 async def get_user(
     user_id: int,
     current_user: TokenData = Depends(require_role("admin")),
@@ -532,7 +606,7 @@ async def get_user(
     return user_manager.convert_to_user(user)
 
 
-@app.put("/users/{user_id}", response_model=User)
+@app.put("/users/{user_id}", response_model=User, tags=["Admin Operations"])
 async def update_user(
     user_id: int,
     user_update: UserUpdate,
@@ -560,7 +634,7 @@ async def update_user(
         )
 
 
-@app.delete("/users/{user_id}")
+@app.delete("/users/{user_id}", tags=["Admin Operations"])
 async def delete_user(
     user_id: int,
     current_user: TokenData = Depends(require_role("admin")),
@@ -583,7 +657,149 @@ async def delete_user(
 
 # Service proxy endpoints
 
-@app.post("/proxy/{service}/{path:path}", response_model=ProxyResponse)
+@app.post("/api/upload", response_model=UploadResponse, tags=["User Operations"])
+async def upload_file(
+    file: UploadFile = File(..., description="Document file to upload (PDF or images)"),
+    current_user: TokenData = Depends(get_current_user)
+):
+    """
+    Upload a file for processing.
+    
+    Upload documents to be processed and made searchable. The file will be:
+    - Stored securely
+    - Processed through OCR (for images/scanned PDFs)
+    - Extracted entities using NER
+    - Generated embeddings for search
+    
+    **Supported File Types:**
+    - **PDFs**: `.pdf` (both searchable and scanned)
+    - **Images**: `.png`, `.jpg`, `.jpeg`, `.tiff`, `.bmp`, `.gif`
+    
+    **File Size Limit**: 10MB per file
+    
+    **Rate Limit**: 10 uploads per minute per user
+    
+    **Authentication**: Requires valid JWT token
+    """
+    try:
+        # Check upload rate limit
+        check_rate_limit(current_user.user_id, "upload")
+        
+        # Prepare file data
+        file_content = await file.read()
+        files = {"file": (file.filename, file_content, file.content_type)}
+        
+        # Proxy to ingestion service
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                f"{settings.ingestion_service_url}/upload",
+                files=files,
+                headers={
+                    "X-Tenant-ID": str(current_user.user_id),  # Use user ID as tenant
+                    "X-User-ID": str(current_user.user_id),
+                    "X-User-Name": current_user.username,
+                    "X-User-Role": current_user.role.value if current_user.role else "user"
+                },
+                timeout=30.0
+            )
+        
+        if response.status_code == 200:
+            response_data = response.json()
+            return UploadResponse(
+                success=True,
+                message="File uploaded successfully",
+                file_id=response_data.get("file_id")
+            )
+        else:
+            return UploadResponse(
+                success=False,
+                message="File upload failed. Please try again."
+            )
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Upload failed: {e}")
+        return UploadResponse(
+            success=False,
+            message="Upload service temporarily unavailable. Please try again later."
+        )
+
+
+@app.post("/api/qa", response_model=QueryResponse, tags=["User Operations"])
+async def ask_question(
+    request: QueryRequest,
+    current_user: TokenData = Depends(get_current_user)
+):
+    """
+    Ask questions about your uploaded documents.
+    
+    Get answers to questions about your uploaded documents using AI-powered question answering.
+    
+    **Parameters:**
+    - **question**: Your question about the documents (required)
+    - **top_k**: Number of documents to consider (default: 5, max: 20)
+    - **filter**: Filter documents by metadata (optional)
+    - **max_context_length**: Maximum context length for AI processing (optional)
+    
+    **Rate Limit**: 60 queries per minute per user
+    
+    **Authentication**: Requires valid JWT token
+    
+    **Example Questions:**
+    - "What is this document about?"
+    - "Summarize the main points"
+    - "What are the key findings?"
+    - "Tell me about the methodology used"
+    """
+    try:
+        # Check QA rate limit
+        check_rate_limit(current_user.user_id, "qa")
+        
+        # Proxy to query service QA endpoint
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                f"{settings.query_service_url}/qa",
+                json={
+                    "question": request.question,
+                    "mode": "rag",  # Use RAG mode for QA
+                    "top_k": request.top_k,
+                    "filter": request.filter,
+                    "max_context_length": request.max_context_length
+                },
+                headers={
+                    "X-Tenant-ID": str(current_user.user_id),  # Use user ID as tenant
+                    "X-User-ID": str(current_user.user_id),
+                    "X-User-Name": current_user.username,
+                    "X-User-Role": current_user.role.value if current_user.role else "user"
+                },
+                timeout=30.0
+            )
+        
+        if response.status_code == 200:
+            response_data = response.json()
+            return QueryResponse(
+                success=True,
+                message="Query processed successfully",
+                answer=response_data.get("answer")
+            )
+        else:
+            return QueryResponse(
+                success=False,
+                message="Query failed. Please check your question and try again."
+            )
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Query failed: {e}")
+        return QueryResponse(
+            success=False,
+            message="Query service temporarily unavailable. Please try again later."
+        )
+
+
+@app.post("/proxy/{service}/{path:path}", response_model=ProxyResponse, tags=["Admin Operations"])
 async def proxy_request(
     service: str,
     path: str,
@@ -593,7 +809,8 @@ async def proxy_request(
     """
     Proxy request to backend service.
     
-    Route authenticated requests to backend services with rate limiting.
+    Forwards authenticated requests to the appropriate backend service.
+    Admin-only endpoint for advanced operations.
     """
     # Check rate limit
     limit_info = check_rate_limit(current_user.user_id, f"proxy:{service}")

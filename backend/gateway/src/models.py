@@ -147,3 +147,113 @@ class ProxyResponse(BaseModel):
     headers: Dict[str, str] = Field(..., description="Response headers")
     data: Optional[Any] = Field(None, description="Response data")
     content_type: Optional[str] = Field(None, description="Response content type")
+
+
+class QueryRequest(BaseModel):
+    """Request model for query operations."""
+    question: str = Field(..., description="Question to ask about uploaded documents", min_length=1, max_length=1000)
+    top_k: Optional[int] = Field(5, description="Number of documents to retrieve", ge=1, le=20)
+    filter: Optional[Dict[str, Any]] = Field(None, description="Filter parameters for documents")
+    max_context_length: Optional[int] = Field(None, description="Maximum context length for LLM")
+    
+    model_config = ConfigDict(
+        json_schema_extra={
+            "examples": [
+                {
+                    "question": "What is this document about?"
+                },
+                {
+                    "question": "Tell me about the main topics discussed",
+                    "top_k": 5
+                },
+                {
+                    "question": "What are the key findings?",
+                    "top_k": 10,
+                    "filter": {
+                        "content_type": "application/pdf",
+                        "file_type": "document"
+                    }
+                }
+            ]
+        }
+    )
+
+
+class UploadResponse(BaseModel):
+    """Response model for file upload."""
+    success: bool = Field(..., description="Upload success status")
+    message: str = Field(..., description="User-friendly message")
+    file_id: Optional[str] = Field(None, description="File identifier")
+    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    
+    @field_serializer('timestamp')
+    def serialize_timestamp(self, value: datetime) -> str:
+        return value.isoformat()
+    
+    model_config = ConfigDict(
+        json_schema_extra={
+            "examples": [
+                {
+                    "success": True,
+                    "message": "File uploaded successfully",
+                    "file_id": "doc_12345",
+                    "timestamp": "2025-10-04T18:44:20.054330"
+                },
+                {
+                    "success": False,
+                    "message": "File upload failed. Please try again.",
+                    "file_id": None,
+                    "timestamp": "2025-10-04T18:44:20.054330"
+                }
+            ]
+        }
+    )
+
+
+class QueryResponse(BaseModel):
+    """Response model for query operations."""
+    success: bool = Field(..., description="Query success status")
+    message: str = Field(..., description="User-friendly message")
+    answer: Optional[str] = Field(None, description="Query answer")
+    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    
+    @field_serializer('timestamp')
+    def serialize_timestamp(self, value: datetime) -> str:
+        return value.isoformat()
+    
+    model_config = ConfigDict(
+        json_schema_extra={
+            "examples": [
+                {
+                    "success": True,
+                    "message": "Query processed successfully",
+                    "answer": "This document discusses machine learning algorithms and their applications in data science.",
+                    "timestamp": "2025-10-04T18:44:41.761673"
+                },
+                {
+                    "success": True,
+                    "message": "Query processed successfully",
+                    "answer": "Found 0 relevant documents for your query.",
+                    "timestamp": "2025-10-04T18:44:41.761673"
+                },
+                {
+                    "success": False,
+                    "message": "Query failed. Please check your question and try again.",
+                    "answer": None,
+                    "timestamp": "2025-10-04T18:44:41.761673"
+                }
+            ]
+        }
+    )
+
+
+class ServiceHealthResponse(BaseModel):
+    """Response model for service health check."""
+    status: str = Field(..., description="Overall service status")
+    message: str = Field(..., description="Service readiness message")
+    services: Dict[str, str] = Field(..., description="Individual service status")
+    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    
+    @field_serializer('timestamp')
+    def serialize_timestamp(self, value: datetime) -> str:
+        return value.isoformat()

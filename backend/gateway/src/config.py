@@ -39,22 +39,27 @@ class Settings(BaseSettings):
     rate_limit_burst_size: int = 10
     
     # Redis Settings
-    redis_url: str = "redis://localhost:6379/1"
-    redis_host: str = "localhost"
+    redis_url: str = "redis://redis:6379/1"
+    redis_host: str = "redis"
     redis_port: int = 6379
     redis_db: int = 1
     
     # Backend Services
-    ingestion_service_url: str = "http://localhost:8003"
-    ocr_service_url: str = "http://localhost:8000"
-    ner_service_url: str = "http://localhost:8001"
-    embedding_service_url: str = "http://localhost:8002"
-    query_service_url: str = "http://localhost:8005"
+    ingestion_service_url: str = "http://ingestion-service:8003"
+    ocr_service_url: str = "http://ocr-service:8000"
+    ner_service_url: str = "http://ner-service:8001"
+    embedding_service_url: str = "http://embedding-service:8002"
+    query_service_url: str = "http://query-service:8004"
     
     # Security Settings
     enable_cors: bool = True
     cors_origins: List[str] = ["*"]
     allowed_hosts: List[str] = ["localhost", "127.0.0.1", "0.0.0.0"]
+    
+    # Rate Limiting Settings
+    upload_rate_limit: int = 10  # requests per minute for upload
+    qa_rate_limit: int = 60   # requests per minute for QA
+    general_rate_limit: int = 100  # requests per minute for other endpoints
     
     # Monitoring Settings
     enable_metrics: bool = True
