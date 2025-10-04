@@ -97,6 +97,49 @@ services:
     networks:
       - backend-network
 
+  # API Gateway Service
+  api-gateway-service:
+    build: ./gateway
+    ports:
+      - "8005:8005"
+    environment:
+      - LOG_LEVEL=INFO
+      - JWT_SECRET_KEY=your-super-secret-jwt-key-change-in-production
+      - JWT_ALGORITHM=HS256
+      - JWT_ACCESS_TOKEN_EXPIRE_MINUTES=30
+      - DATABASE_URL=postgresql://postgres:password@postgres:5432/ingestion_db
+      - REDIS_URL=redis://redis:6379/1
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_DB=1
+      - RATE_LIMIT_ENABLED=true
+      - RATE_LIMIT_REQUESTS_PER_MINUTE=60
+      - RATE_LIMIT_REQUESTS_PER_HOUR=1000
+      - RATE_LIMIT_REQUESTS_PER_DAY=10000
+      - INGESTION_SERVICE_URL=http://ingestion-service:8003
+      - OCR_SERVICE_URL=http://ocr-service:8000
+      - NER_SERVICE_URL=http://ner-service:8001
+      - EMBEDDING_SERVICE_URL=http://embedding-service:8002
+      - QUERY_SERVICE_URL=http://query-service:8004
+      - ENABLE_CORS=true
+      - CORS_ORIGINS=["*"]
+      - ALLOWED_HOSTS=["localhost", "127.0.0.1", "0.0.0.0"]
+    volumes:
+      - ./gateway/src:/app/src:ro
+      - ./gateway/tests:/app/tests:ro
+    depends_on:
+      - redis
+      - postgres
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8005/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - backend-network
+
   # Qdrant Vector Database
   qdrant:
     image: qdrant/qdrant:v1.8.4
