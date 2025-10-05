@@ -35,7 +35,7 @@ class Settings(BaseSettings):
     minio_bucket_prefix: str = "ingestion"
 
     # File Processing Settings
-    max_file_size_mb: int = 100
+    max_file_size_mb: int = 20
     max_files_per_request: int = 10
     supported_file_types: list[str] = [
         "application/pdf",

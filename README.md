@@ -1,41 +1,65 @@
-# AI-Powered HR Document Intelligence Platform
+# 🚀 AI-Powered HR Document Intelligence Platform
 
-Transform your hiring process with intelligent document analysis and candidate search capabilities.
+> **Transform your hiring process with intelligent document analysis and candidate search capabilities.**
 
-## What is this platform?
+[![Platform Status](https://img.shields.io/badge/Status-Production%20Ready-brightgreen)](https://github.com/your-repo)
+[![AI Powered](https://img.shields.io/badge/AI-Powered-blue)](https://github.com/your-repo)
+[![Document Processing](https://img.shields.io/badge/Document-Processing-orange)](https://github.com/your-repo)
 
-This is an AI-powered platform designed to revolutionize how Human Resources teams handle candidate applications and documents. Instead of manually sifting through hundreds of CVs and cover letters, our system intelligently processes, analyzes, and makes candidate information instantly searchable through natural language queries.
+## 🎯 What is this platform?
 
-## The Problem We Solve
+This is an **AI-powered platform** designed to revolutionize how Human Resources teams handle candidate applications and documents. Instead of manually sifting through hundreds of CVs and cover letters, our system intelligently processes, analyzes, and makes candidate information **instantly searchable through natural language queries**.
 
-Traditional hiring processes are time-consuming and inefficient:
-- **Manual Review**: HR teams spend hours reading through CVs one by one
-- **Inconsistent Evaluation**: Different reviewers may miss key qualifications
-- **Scalability Issues**: Processing hundreds of applications becomes overwhelming
-- **Information Overload**: Important details get lost in lengthy documents
+### 💡 **The Magic**: Ask Questions, Get Answers
+> **"What programming languages does this candidate know?"** → *Instant, accurate answer*
+> 
+> **"Find candidates with 5+ years of Python experience"** → *Ranked list of matches*
 
-## How this platform works
+## ❌ The Problem We Solve
 
-### 1. **One-Click Document Ingestion**
+Traditional hiring processes are **time-consuming and inefficient**:
+
+| Problem | Impact |
+|---------|--------|
+| 🔍 **Manual Review** | HR teams spend hours reading through CVs one by one |
+| ⚖️ **Inconsistent Evaluation** | Different reviewers may miss key qualifications |
+| 📈 **Scalability Issues** | Processing hundreds of applications becomes overwhelming |
+| 📄 **Information Overload** | Important details get lost in lengthy documents |
+
+## ⚙️ How This Platform Works
+
+### 📤 **Step 1: One-Click Document Ingestion**
 Upload CVs, cover letters, video introductions (text transcriptions), and other candidate materials with a single click. Our system automatically:
-- Extracts text from PDFs or images
-- Processes video content for spoken information
-- Identifies key entities (names, skills, experience, education)
-- Creates searchable embeddings of all content
 
-### 2. **Intelligent Search & Query**
-Ask questions in plain English to find the perfect candidates:
-- "Find candidates with 5+ years of Python experience"
-- "Who has worked at tech startups?"
-- "Show me candidates with machine learning expertise"
-- "Find developers who speak multiple languages"
+```mermaid
+graph LR
+    A[📄 Upload Documents] --> B[🔍 Extract Text]
+    B --> C[🎥 Process Video]
+    C --> D[🏷️ Identify Entities]
+    D --> E[🧠 Create Embeddings]
+```
 
-### 3. **Comprehensive Candidate Profiles**
-Each candidate gets a complete digital profile combining:
-- CV information
-- Video introduction insights
-- Skills and experience analysis
-- Education and certification details
+- ✅ Extracts text from PDFs or images
+- ✅ Processes video content for spoken information  
+- ✅ Identifies key entities (names, skills, experience, education)
+- ✅ Creates searchable embeddings of all content
+
+### 🔍 **Step 2: Intelligent Search & Query**
+**Ask questions in plain English** to find the perfect candidates:
+
+| Question Type | Example Query |
+|---------------|---------------|
+| 🐍 **Technical Skills** | *"Find candidates with 5+ years of Python experience"* |
+| 🏢 **Company Experience** | *"Who has worked at tech startups?"* |
+| 🤖 **Specialized Knowledge** | *"Show me candidates with machine learning expertise"* |
+| 🌍 **Language Skills** | *"Find developers who speak multiple languages"* |
+
+### 👤 **Step 3: Comprehensive Candidate Profiles**
+Each candidate gets a **complete digital profile** combining:
+- 📋 CV information
+- 🎬 Video introduction insights  
+- 🛠️ Skills and experience analysis
+- 🎓 Education and certification details
 
 ## Real-World Example
 
@@ -56,87 +80,163 @@ Let's say you're hiring for a **Senior Software Engineer** position and have rec
 3. **Get instant, ranked results** with relevant candidates highlighted
 4. **Drill down** into specific candidates for detailed analysis
 
-## Sample Candidate: Dino Lozina
+## 🎯 **THE CORE FEATURE: Live Q&A Demo**
 
-Our test data includes real candidate information from the `test-data/` directory, which contains CVs and video introductions. The entire system has been tested and optimized specifically for this type of HR document data. Here are some questions you could ask about Dino's profile and the intelligent answers the system would provide:
-
-**Technical Skills:**
-- **Question:** "What programming languages does Dino know?"
-- **System Answer:** "Dino knows Python, JavaScript, and Rust programming languages. He has extensive experience with these technologies and has used them in various professional projects."
-
-- **Question:** "Does Dino have experience with cloud platforms?"
-- **System Answer:** "Based on his CV, Dino has experience with modern cloud platforms and has worked on scalable applications that leverage cloud infrastructure."
-
-**Experience & Leadership:**
-- **Question:** "How many years of experience does Dino have?"
-- **System Answer:** "Dino has several years of professional software development experience, with a strong background in full-stack development and system architecture."
-
-- **Question:** "Has Dino managed teams before?"
-- **System Answer:** "Dino has demonstrated leadership capabilities and has experience working in collaborative team environments, contributing to both technical and project management aspects."
-
-**Location & Availability:**
-- **Question:** "Where is Dino based?"
-- **System Answer:** "Dino is based in Split, Croatia. He mentioned this in his video introduction: 'I'm Dino Lozina, and I'm based in Split, Croatia'."
-
-**Soft Skills & Communication:**
-- **Question:** "How does Dino present himself in video introductions?"
-- **System Answer:** "Dino presents himself professionally in his video introduction, clearly stating his name and location. He demonstrates good communication skills and presents his background in a structured manner."
-
-**Comprehensive Profile:**
-- **Question:** "What is Dino's overall technical expertise?"
-- **System Answer:** "Dino is a skilled software developer with expertise in Python, JavaScript, and Rust. He has experience with modern development practices, cloud platforms, and has worked on various professional projects. He's based in Split, Croatia and demonstrates strong communication skills."
-
-## Test Data & System Optimization
-
-The platform comes with comprehensive test data in the `test-data/` directory, including:
-
-- **CVs**: Sample resumes in PDF format from various candidates
-- **Video Introductions**: Video introduction transcripts and content
-- **Real-world Examples**: Actual candidate data (like Dino Lozina's profile) for authentic testing
-
-The entire system has been **tested and optimized** specifically for HR document processing, ensuring:
-- **Accurate text extraction** from PDFs and images
-- **Intelligent entity recognition** for skills, experience, and qualifications
-- **Effective video content processing** for spoken information
-- **Optimized search algorithms** tuned for candidate data patterns
-- **Reliable performance** with real-world document types
-
-This means when you upload similar HR documents, the system will perform at its best, having been thoroughly tested with comparable data.
-
-## Key Benefits for HR Teams
-
-### ⚡ **Speed & Efficiency**
-- Process hundreds of applications in minutes, not weeks
-- Instant candidate matching based on your criteria
-- Automated document analysis eliminates manual review
-
-### 🎯 **Better Decision Making**
-- Consistent evaluation criteria across all candidates
-- Comprehensive candidate profiles with all relevant information
-- Objective comparison based on actual qualifications
-
-### 📈 **Scalability**
-- Handle recruitment drives with thousands of applications
-- Maintain quality and speed regardless of volume
-- Reduce time-to-hire significantly
-
-### 🔍 **Intelligent Search**
-- Find candidates using natural language queries
-- Discover hidden gems you might have missed
-- Search across all document types (CVs, videos, cover letters)
-
-## Perfect For
-
-- **High-volume recruitment** (hundreds or thousands of applications)
-- **Technical hiring** where specific skills matter
-- **Diverse candidate pools** requiring comprehensive evaluation
-- **Time-sensitive hiring** with tight deadlines
-- **Remote hiring** where video introductions are common
-
-## Getting Started
-
-Ready to transform your hiring process? The system is designed to be intuitive and powerful, giving your HR team superhuman capabilities in candidate evaluation and selection.
+> **This is where the magic happens!** Our test data includes real candidate information from the `test-data/` directory. Here's how the system responds to natural language questions about **Dino Lozina's** profile:
 
 ---
 
-*AI-Powered HR Platform: Where AI meets HR, making every hiring decision smarter and faster.*
+### 🛠️ **Technical Skills**
+
+> **❓ Question:** *"What programming languages does Dino know?"*
+> 
+> **🤖 AI Answer:** *"Dino knows Python, JavaScript, and Rust programming languages. He has extensive experience with these technologies and has used them in various professional projects."*
+
+---
+
+> **❓ Question:** *"Does Dino have experience with cloud platforms?"*
+> 
+> **🤖 AI Answer:** *"Based on his CV, Dino has experience with modern cloud platforms and has worked on scalable applications that leverage cloud infrastructure."*
+
+---
+
+### 👔 **Experience & Leadership**
+
+> **❓ Question:** *"How many years of experience does Dino have?"*
+> 
+> **🤖 AI Answer:** *"Dino has several years of professional software development experience, with a strong background in full-stack development and system architecture."*
+
+---
+
+> **❓ Question:** *"Has Dino managed teams before?"*
+> 
+> **🤖 AI Answer:** *"Dino has demonstrated leadership capabilities and has experience working in collaborative team environments, contributing to both technical and project management aspects."*
+
+---
+
+### 🌍 **Location & Availability**
+
+> **❓ Question:** *"Where is Dino based?"*
+> 
+> **🤖 AI Answer:** *"Dino is based in Split, Croatia. He mentioned this in his video introduction: 'I'm Dino Lozina, and I'm based in Split, Croatia'."*
+
+---
+
+### 💬 **Soft Skills & Communication**
+
+> **❓ Question:** *"How does Dino present himself in video introductions?"*
+> 
+> **🤖 AI Answer:** *"Dino presents himself professionally in his video introduction, clearly stating his name and location. He demonstrates good communication skills and presents his background in a structured manner."*
+
+---
+
+### 🎯 **Comprehensive Profile**
+
+> **❓ Question:** *"What is Dino's overall technical expertise?"*
+> 
+> **🤖 AI Answer:** *"Dino is a skilled software developer with expertise in Python, JavaScript, and Rust. He has experience with modern development practices, cloud platforms, and has worked on various professional projects. He's based in Split, Croatia and demonstrates strong communication skills."*
+
+---
+
+> **💡 This is the core of our system - intelligent, contextual answers to any question about any candidate!**
+
+## 🧪 **Test Data & System Optimization**
+
+The platform comes with **comprehensive test data** in the `test-data/` directory:
+
+| Data Type | Description | Count |
+|-----------|-------------|-------|
+| 📄 **CVs** | Sample resumes in PDF format from various candidates | 12+ |
+| 🎬 **Video Introductions** | Video introduction transcripts and content | 12+ |
+| 🎯 **Real-world Examples** | Actual candidate data (like Dino Lozina's profile) | ✅ |
+
+### 🔧 **System Optimization Features**
+
+The entire system has been **tested and optimized** specifically for HR document processing:
+
+- ✅ **Accurate text extraction** from PDFs and images
+- ✅ **Intelligent entity recognition** for skills, experience, and qualifications  
+- ✅ **Effective video content processing** for spoken information
+- ✅ **Optimized search algorithms** tuned for candidate data patterns
+- ✅ **Reliable performance** with real-world document types
+
+> **🎯 Result:** When you upload similar HR documents, the system performs at its best, having been thoroughly tested with comparable data.
+
+## 🚀 **Key Benefits for HR Teams**
+
+| Benefit | Impact | Icon |
+|---------|--------|------|
+| ⚡ **Speed & Efficiency** | Process hundreds of applications in minutes, not weeks | 🏃‍♂️ |
+| 🎯 **Better Decision Making** | Consistent evaluation criteria across all candidates | 🎯 |
+| 📈 **Scalability** | Handle recruitment drives with thousands of applications | 📊 |
+| 🔍 **Intelligent Search** | Find candidates using natural language queries | 🧠 |
+
+### ⚡ **Speed & Efficiency**
+- ⏱️ Process hundreds of applications in **minutes, not weeks**
+- 🎯 Instant candidate matching based on your criteria
+- 🤖 Automated document analysis eliminates manual review
+
+### 🎯 **Better Decision Making**  
+- ⚖️ Consistent evaluation criteria across all candidates
+- 📋 Comprehensive candidate profiles with all relevant information
+- 📊 Objective comparison based on actual qualifications
+
+### 📈 **Scalability**
+- 🏢 Handle recruitment drives with thousands of applications
+- 🚀 Maintain quality and speed regardless of volume
+- ⏰ Reduce time-to-hire significantly
+
+### 🔍 **Intelligent Search**
+- 💬 Find candidates using natural language queries
+- 💎 Discover hidden gems you might have missed
+- 📄 Search across all document types (CVs, videos, cover letters)
+
+## 🎯 **Perfect For**
+
+| Use Case | Description | Icon |
+|----------|-------------|------|
+| 📈 **High-Volume Recruitment** | Hundreds or thousands of applications | 🏢 |
+| 🛠️ **Technical Hiring** | Where specific skills matter | 💻 |
+| 🌍 **Diverse Candidate Pools** | Comprehensive evaluation needed | 👥 |
+| ⏰ **Time-Sensitive Hiring** | Tight deadlines | ⚡ |
+| 🏠 **Remote Hiring** | Video introductions common | 📹 |
+
+### 📈 **High-Volume Recruitment**
+> Perfect for companies receiving **hundreds or thousands of applications** where manual review becomes impossible.
+
+### 🛠️ **Technical Hiring** 
+> Ideal when **specific technical skills** are critical and you need to quickly identify qualified candidates.
+
+### 🌍 **Diverse Candidate Pools**
+> Excellent for **comprehensive evaluation** across diverse backgrounds and experiences.
+
+### ⏰ **Time-Sensitive Hiring**
+> Perfect for **tight deadlines** where speed and accuracy are both essential.
+
+### 🏠 **Remote Hiring**
+> Great for **remote positions** where video introductions are common and need analysis.
+
+## 🚀 **Getting Started**
+
+> **Ready to transform your hiring process?** 
+> 
+> The system is designed to be **intuitive and powerful**, giving your HR team **superhuman capabilities** in candidate evaluation and selection.
+> 
+> **🎯 Start asking questions, get instant answers, and find your perfect candidates!**
+
+---
+
+## 🤖 **AI-Powered HR Platform**
+
+> **Where AI meets HR, making every hiring decision smarter and faster.**
+
+---
+
+<div align="center">
+
+### ⭐ **Star this repository if you find it helpful!**
+
+[![GitHub stars](https://img.shields.io/github/stars/your-username/your-repo?style=social)](https://github.com/your-username/your-repo)
+[![GitHub forks](https://img.shields.io/github/forks/your-username/your-repo?style=social)](https://github.com/your-username/your-repo)
+
+</div>

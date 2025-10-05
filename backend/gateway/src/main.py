@@ -681,9 +681,9 @@ async def upload_file(
 
     **Supported File Types:**
     - **PDFs**: `.pdf` (both searchable and scanned)
-    - **Images**: `.png`, `.jpg`, `.jpeg`, `.tiff`, `.bmp`, `.gif`
+    - **Images**: `.jpg`, `.jpeg`
 
-    **File Size Limit**: 10MB per file
+    **File Size Limit**: 20 MB per file (configurable)
 
     **Rate Limit**: 10 uploads per minute per user
 

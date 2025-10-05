@@ -55,7 +55,6 @@ deactivate  # Exit the virtual environment
 
 The following hooks run automatically on every commit:
 
-- **Code Formatting**: `black` - Automatic code formatting
 - **Import Sorting**: `isort` - Organizes imports
 - **Linting**: `ruff` - Fast Python linter
 - **Type Checking**: `mypy` - Static type checking
