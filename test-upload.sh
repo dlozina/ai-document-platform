@@ -49,11 +49,11 @@ endstream
 endobj
 xref
 0 5
-0000000000 65535 f 
-0000000009 00000 n 
-0000000058 00000 n 
-0000000115 00000 n 
-0000000204 00000 n 
+0000000000 65535 f
+0000000009 00000 n
+0000000058 00000 n
+0000000115 00000 n
+0000000204 00000 n
 trailer
 <<
 /Size 5
@@ -67,14 +67,14 @@ startxref
 upload_file() {
     local description=$1
     local file_path=$2
-    
+
     echo -n "Testing $description... "
-    
+
     response=$(curl -s -w "%{http_code}" \
         -H "X-Tenant-ID: $TENANT_ID" \
         -F "file=@$file_path" \
         "$BASE_URL/upload")
-    
+
     http_code="${response: -3}"
     if [ "$http_code" = "200" ]; then
         echo -e "\033[0;32m✓ SUCCESS\033[0m"

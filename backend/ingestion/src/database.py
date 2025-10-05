@@ -3,13 +3,23 @@ Database models and operations for Ingestion Service
 """
 
 import logging
-from typing import Optional, List, Dict, Any
-from datetime import datetime
-from sqlalchemy import create_engine, Column, String, Integer, DateTime, Boolean, Text, JSON, Float
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker, Session
-from sqlalchemy.dialects.postgresql import UUID
 import uuid
+from datetime import datetime
+from typing import Any
+
+from sqlalchemy import (
+    JSON,
+    Boolean,
+    Column,
+    DateTime,
+    Integer,
+    String,
+    Text,
+    create_engine,
+)
+from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import Session, sessionmaker
 
 from .config import get_settings
 
@@ -20,8 +30,9 @@ Base = declarative_base()
 
 class Document(Base):
     """Document metadata table."""
+
     __tablename__ = "documents"
-    
+
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     tenant_id = Column(String(255), nullable=False, index=True)
     filename = Column(String(500), nullable=False)
@@ -32,33 +43,36 @@ class Document(Base):
     storage_path = Column(String(1000), nullable=False)
     upload_timestamp = Column(DateTime, nullable=False, default=datetime.utcnow)
     created_by = Column(String(255), nullable=True)
-    
+
     # Processing status
     processing_status = Column(String(50), nullable=False, default="pending")
     ocr_status = Column(String(50), nullable=True)
     ner_status = Column(String(50), nullable=True)
     embedding_status = Column(String(50), nullable=True)
-    
+
     # Processing results
     ocr_text = Column(Text, nullable=True)
     ner_entities = Column(JSON, nullable=True)
     embedding_vector = Column(JSON, nullable=True)
-    
+
     # Metadata
     tags = Column(JSON, nullable=True, default=list)
     description = Column(Text, nullable=True)
     retention_date = Column(DateTime, nullable=True)
     is_deleted = Column(Boolean, nullable=False, default=False)
-    
+
     # Timestamps
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
-    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+    updated_at = Column(
+        DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow
+    )
 
 
 class ProcessingJob(Base):
     """Processing job tracking table."""
+
     __tablename__ = "processing_jobs"
-    
+
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     document_id = Column(UUID(as_uuid=True), nullable=False, index=True)
     tenant_id = Column(String(255), nullable=False, index=True)
@@ -70,103 +84,117 @@ class ProcessingJob(Base):
     started_at = Column(DateTime, nullable=True)
     completed_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
-    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+    updated_at = Column(
+        DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow
+    )
 
 
 class TenantQuota(Base):
     """Tenant quota configuration table."""
+
     __tablename__ = "tenant_quotas"
-    
+
     tenant_id = Column(String(255), primary_key=True)
-    max_storage_bytes = Column(Integer, nullable=False, default=1073741824)  # 1GB default
+    max_storage_bytes = Column(
+        Integer, nullable=False, default=1073741824
+    )  # 1GB default
     max_files = Column(Integer, nullable=False, default=1000)
-    max_file_size_bytes = Column(Integer, nullable=False, default=104857600)  # 100MB default
+    max_file_size_bytes = Column(
+        Integer, nullable=False, default=104857600
+    )  # 100MB default
     retention_days = Column(Integer, nullable=False, default=365)
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
-    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+    updated_at = Column(
+        DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow
+    )
 
 
 class DatabaseManager:
     """Database connection and operations manager."""
-    
+
     def __init__(self):
         self.settings = get_settings()
         self.engine = create_engine(
             self.settings.database_url,
             pool_size=self.settings.database_pool_size,
             max_overflow=self.settings.database_max_overflow,
-            echo=False
+            echo=False,
         )
-        self.SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=self.engine)
-        
+        self.SessionLocal = sessionmaker(
+            autocommit=False, autoflush=False, bind=self.engine
+        )
+
         # Create tables
         Base.metadata.create_all(bind=self.engine)
-    
+
     def get_session(self) -> Session:
         """Get database session."""
         return self.SessionLocal()
-    
-    def create_document(self, session: Session, document_data: Dict[str, Any]) -> Document:
+
+    def create_document(
+        self, session: Session, document_data: dict[str, Any]
+    ) -> Document:
         """Create a new document record."""
         document = Document(**document_data)
         session.add(document)
         session.commit()
         session.refresh(document)
         return document
-    
-    def get_document(self, session: Session, document_id: str) -> Optional[Document]:
+
+    def get_document(self, session: Session, document_id: str) -> Document | None:
         """Get document by ID."""
-        return session.query(Document).filter(
-            Document.id == document_id,
-            Document.is_deleted == False
-        ).first()
-    
+        return (
+            session.query(Document)
+            .filter(Document.id == document_id, Document.is_deleted == False)
+            .first()
+        )
+
     def get_documents_by_tenant(
-        self, 
-        session: Session, 
-        tenant_id: str, 
-        page: int = 1, 
+        self,
+        session: Session,
+        tenant_id: str,
+        page: int = 1,
         page_size: int = 20,
-        file_type: Optional[str] = None,
-        processing_status: Optional[str] = None
-    ) -> List[Document]:
+        file_type: str | None = None,
+        processing_status: str | None = None,
+    ) -> list[Document]:
         """Get documents for a tenant with pagination and filtering."""
         query = session.query(Document).filter(
-            Document.tenant_id == tenant_id,
-            Document.is_deleted == False
+            Document.tenant_id == tenant_id, Document.is_deleted == False
         )
-        
+
         if file_type:
             query = query.filter(Document.file_type == file_type)
-        
+
         if processing_status:
             query = query.filter(Document.processing_status == processing_status)
-        
+
         offset = (page - 1) * page_size
         return query.offset(offset).limit(page_size).all()
-    
+
     def count_documents_by_tenant(
-        self, 
-        session: Session, 
+        self,
+        session: Session,
         tenant_id: str,
-        file_type: Optional[str] = None,
-        processing_status: Optional[str] = None
+        file_type: str | None = None,
+        processing_status: str | None = None,
     ) -> int:
         """Count documents for a tenant."""
         query = session.query(Document).filter(
-            Document.tenant_id == tenant_id,
-            Document.is_deleted == False
+            Document.tenant_id == tenant_id, Document.is_deleted == False
         )
-        
+
         if file_type:
             query = query.filter(Document.file_type == file_type)
-        
+
         if processing_status:
             query = query.filter(Document.processing_status == processing_status)
-        
+
         return query.count()
-    
-    def update_document(self, session: Session, document_id: str, update_data: Dict[str, Any]) -> Optional[Document]:
+
+    def update_document(
+        self, session: Session, document_id: str, update_data: dict[str, Any]
+    ) -> Document | None:
         """Update document record."""
         document = self.get_document(session, document_id)
         if document:
@@ -176,7 +204,7 @@ class DatabaseManager:
             session.commit()
             session.refresh(document)
         return document
-    
+
     def soft_delete_document(self, session: Session, document_id: str) -> bool:
         """Soft delete a document."""
         document = self.get_document(session, document_id)
@@ -186,21 +214,26 @@ class DatabaseManager:
             session.commit()
             return True
         return False
-    
-    def get_document_by_hash(self, session: Session, file_hash: str) -> Optional[Document]:
+
+    def get_document_by_hash(self, session: Session, file_hash: str) -> Document | None:
         """Get document by file hash (for deduplication)."""
-        return session.query(Document).filter(
-            Document.file_hash == file_hash,
-            Document.is_deleted == False
-        ).first()
-    
-    def create_processing_job(self, session: Session, job_data: Dict[str, Any]) -> ProcessingJob:
+        return (
+            session.query(Document)
+            .filter(Document.file_hash == file_hash, Document.is_deleted == False)
+            .first()
+        )
+
+    def create_processing_job(
+        self, session: Session, job_data: dict[str, Any]
+    ) -> ProcessingJob:
         """Create a new processing job or update existing one if it already exists."""
-        job_id = job_data.get('id')
-        
+        job_id = job_data.get("id")
+
         # Try to get existing job first
-        existing_job = session.query(ProcessingJob).filter(ProcessingJob.id == job_id).first()
-        
+        existing_job = (
+            session.query(ProcessingJob).filter(ProcessingJob.id == job_id).first()
+        )
+
         if existing_job:
             # Update existing job
             for key, value in job_data.items():
@@ -217,8 +250,10 @@ class DatabaseManager:
             session.commit()
             session.refresh(job)
             return job
-    
-    def update_processing_job(self, session: Session, job_id: str, update_data: Dict[str, Any]) -> Optional[ProcessingJob]:
+
+    def update_processing_job(
+        self, session: Session, job_id: str, update_data: dict[str, Any]
+    ) -> ProcessingJob | None:
         """Update processing job."""
         job = session.query(ProcessingJob).filter(ProcessingJob.id == job_id).first()
         if job:
@@ -228,81 +263,83 @@ class DatabaseManager:
             session.commit()
             session.refresh(job)
         return job
-    
-    def get_tenant_quota(self, session: Session, tenant_id: str) -> Optional[TenantQuota]:
+
+    def get_tenant_quota(self, session: Session, tenant_id: str) -> TenantQuota | None:
         """Get tenant quota configuration."""
-        return session.query(TenantQuota).filter(TenantQuota.tenant_id == tenant_id).first()
-    
-    def create_tenant_quota(self, session: Session, tenant_id: str, quota_data: Dict[str, Any]) -> TenantQuota:
+        return (
+            session.query(TenantQuota)
+            .filter(TenantQuota.tenant_id == tenant_id)
+            .first()
+        )
+
+    def create_tenant_quota(
+        self, session: Session, tenant_id: str, quota_data: dict[str, Any]
+    ) -> TenantQuota:
         """Create tenant quota configuration."""
         quota = TenantQuota(tenant_id=tenant_id, **quota_data)
         session.add(quota)
         session.commit()
         session.refresh(quota)
         return quota
-    
-    def get_tenant_storage_usage(self, session: Session, tenant_id: str) -> Dict[str, int]:
+
+    def get_tenant_storage_usage(
+        self, session: Session, tenant_id: str
+    ) -> dict[str, int]:
         """Get tenant storage usage statistics."""
-        result = session.query(
-            Document.file_size_bytes,
-            Document.id
-        ).filter(
-            Document.tenant_id == tenant_id,
-            Document.is_deleted == False
-        ).all()
-        
+        result = (
+            session.query(Document.file_size_bytes, Document.id)
+            .filter(Document.tenant_id == tenant_id, Document.is_deleted == False)
+            .all()
+        )
+
         total_size = sum(row.file_size_bytes for row in result)
         file_count = len(result)
-        
-        return {
-            "used_storage_bytes": total_size,
-            "used_files": file_count
-        }
-    
+
+        return {"used_storage_bytes": total_size, "used_files": file_count}
+
     def search_documents(
-        self, 
-        session: Session, 
-        tenant_id: str, 
-        query: Optional[str] = None,
-        file_types: Optional[List[str]] = None,
-        tags: Optional[List[str]] = None,
-        date_from: Optional[datetime] = None,
-        date_to: Optional[datetime] = None,
+        self,
+        session: Session,
+        tenant_id: str,
+        query: str | None = None,
+        file_types: list[str | None] = None,
+        tags: list[str | None] = None,
+        date_from: datetime | None = None,
+        date_to: datetime | None = None,
         page: int = 1,
-        page_size: int = 20
-    ) -> List[Document]:
+        page_size: int = 20,
+    ) -> list[Document]:
         """Search documents with various filters."""
         db_query = session.query(Document).filter(
-            Document.tenant_id == tenant_id,
-            Document.is_deleted == False
+            Document.tenant_id == tenant_id, Document.is_deleted == False
         )
-        
+
         if query:
             db_query = db_query.filter(
-                Document.filename.ilike(f"%{query}%") |
-                Document.description.ilike(f"%{query}%")
+                Document.filename.ilike(f"%{query}%")
+                | Document.description.ilike(f"%{query}%")
             )
-        
+
         if file_types:
             db_query = db_query.filter(Document.file_type.in_(file_types))
-        
+
         if tags:
             # PostgreSQL JSON array contains operator
             for tag in tags:
                 db_query = db_query.filter(Document.tags.contains([tag]))
-        
+
         if date_from:
             db_query = db_query.filter(Document.upload_timestamp >= date_from)
-        
+
         if date_to:
             db_query = db_query.filter(Document.upload_timestamp <= date_to)
-        
+
         offset = (page - 1) * page_size
         return db_query.offset(offset).limit(page_size).all()
 
 
 # Global database manager instance
-db_manager: Optional[DatabaseManager] = None
+db_manager: DatabaseManager | None = None
 
 
 def get_db_manager() -> DatabaseManager:

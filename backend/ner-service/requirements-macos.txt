@@ -4,7 +4,7 @@
 # FastAPI and web framework
 fastapi>=0.115.0
 uvicorn[standard]>=0.30.6
-python-multipart>=0.0.12
+python-multipart>=0.0.20
 
 # NLP and NER processing with Apple Silicon support
 spacy[apple]>=3.7.2
