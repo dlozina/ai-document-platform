@@ -53,10 +53,13 @@ dmypy.json
 .pyre/
 .pytype/
 
-# Environment variables
+# Secrets and credentials
+*.key
+*.pem
 .env
 .env.local
-.env.*.local
+.env.production
+secrets/
 
 # Logs
 *.log
