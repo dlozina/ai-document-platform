@@ -6,26 +6,35 @@ FastAPI application that exposes semantic search and question-answering function
 
 import logging
 import time
-from typing import Optional
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, HTTPException, Header
-from fastapi.responses import JSONResponse
-from pydantic import BaseModel, Field
 import uvicorn
+from fastapi import FastAPI, Header, HTTPException
+from fastapi.responses import JSONResponse
 
-from .query_processor import QueryProcessor
 from .config import get_settings
+from .models import (
+    CollectionInfo,
+    ErrorResponse,
+    HealthResponse,
+    QARequest,
+    QAResponse,
+    QueryMode,
+    QueryRequest,
+    QueryResponse,
+    SemanticSearchRequest,
+    SemanticSearchResponse,
+)
+from .query_processor import QueryProcessor
 
 # Configure logging
 logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
 
 # Global query processor instance
-query_processor: Optional[QueryProcessor] = None
+query_processor: QueryProcessor | None = None
 settings = get_settings()
 
 
@@ -33,13 +42,13 @@ settings = get_settings()
 async def lifespan(app: FastAPI):
     """Initialize and cleanup resources."""
     global query_processor
-    
+
     logger.info("Starting Query Service...")
     query_processor = QueryProcessor()
     logger.info("Query Service ready")
-    
+
     yield
-    
+
     logger.info("Shutting down Query Service...")
 
 
@@ -48,9 +57,9 @@ app = FastAPI(
     title="Query Service",
     description="""
     ## Production-ready Query Service
-    
+
     Semantic search and question-answering system that leverages OCR, NER, and embeddings to provide intelligent answers.
-    
+
     ### Features:
     - **Semantic Search** using vector similarity and embeddings
     - **Question Answering** with RAG mode
@@ -58,25 +67,25 @@ app = FastAPI(
     - **Entity Recognition** integration for enhanced search
     - **Result Reranking** for improved relevance
     - **Multiple LLM Support** (OpenAI, Anthropic, Mistral)
-    
+
     ### Query Modes:
     1. **Semantic Search**: Find relevant documents using vector similarity
     2. **Extractive QA**: Extract exact answers from document text (testing only)
     3. **RAG**: Generate comprehensive answers using LLM + retrieved context
-    
+
     ### Filtering Capabilities:
     - **Metadata filters**: tenant_id, content_type, file_type
     - **Entity filters**: Find documents mentioning specific people, organizations, locations
     - **Date ranges**: Filter by upload timestamp
     - **File properties**: Size ranges, processing status
     - **Custom tags**: Document tags and descriptions
-    
+
     ### Use Cases:
     - "What programming languages does Dino know?" → Extract Python, JavaScript, Rust
     - "Where has Dino worked?" → Find Macrometa, identify as US startup
     - "Find documents about system design" → Semantic search on that topic
     - "Show me all documents mentioning Croatian locations" → Entity-filtered search
-    
+
     ### Performance Features:
     - Vector similarity search with Qdrant
     - Result reranking with cross-encoder models
@@ -94,34 +103,22 @@ app = FastAPI(
         "url": "https://opensource.org/licenses/MIT",
     },
     servers=[
-        {
-            "url": "http://localhost:8004",
-            "description": "Development server"
-        },
-        {
-            "url": "https://api.example.com",
-            "description": "Production server"
-        }
-    ]
-)
-
-
-from .models import (
-    QueryRequest, QueryResponse, SemanticSearchRequest, SemanticSearchResponse,
-    QARequest, QAResponse, HealthResponse, ErrorResponse, CollectionInfo,
-    DocumentStats, QueryStats, QueryMode
+        {"url": "http://localhost:8004", "description": "Development server"},
+        {"url": "https://api.example.com", "description": "Production server"},
+    ],
 )
 
 
 # API Endpoints
 
+
 @app.get("/health", response_model=HealthResponse)
 async def health_check():
     """
     Health check endpoint.
-    
+
     Returns service status and dependencies availability.
-    
+
     **Returns:**
     - Service status (healthy/degraded)
     - Service information
@@ -138,18 +135,22 @@ async def health_check():
             qdrant_available=False,
             database_connected=False,
             embedding_model_loaded=False,
-            llm_available=False
+            llm_available=False,
         )
-    
+
     try:
         health_status = query_processor.health_check()
-        
-        overall_status = "healthy" if (
-            health_status["embedding_model_loaded"] and 
-            health_status["qdrant_available"] and 
-            health_status["database_connected"]
-        ) else "degraded"
-        
+
+        overall_status = (
+            "healthy"
+            if (
+                health_status["embedding_model_loaded"]
+                and health_status["qdrant_available"]
+                and health_status["database_connected"]
+            )
+            else "degraded"
+        )
+
         return HealthResponse(
             status=overall_status,
             service="query-service",
@@ -157,7 +158,7 @@ async def health_check():
             qdrant_available=health_status["qdrant_available"],
             database_connected=health_status["database_connected"],
             embedding_model_loaded=health_status["embedding_model_loaded"],
-            llm_available=health_status.get("llm_available", False)
+            llm_available=health_status.get("llm_available", False),
         )
     except Exception as e:
         logger.error(f"Health check failed: {e}")
@@ -168,18 +169,17 @@ async def health_check():
             qdrant_available=False,
             database_connected=False,
             embedding_model_loaded=False,
-            llm_available=False
+            llm_available=False,
         )
 
 
 @app.post("/query", response_model=QueryResponse)
 async def query_documents(
-    request: QueryRequest,
-    tenant_id: Optional[str] = Header(None, alias="X-Tenant-ID")
+    request: QueryRequest, tenant_id: str | None = Header(None, alias="X-Tenant-ID")
 ):
     """
     Main query endpoint supporting all query modes.
-    
+
     **Parameters:**
     - **query**: Search query or question (required)
     - **mode**: Query mode - semantic_search, extractive_qa (testing), or rag
@@ -189,7 +189,7 @@ async def query_documents(
     - **enable_reranking**: Enable result reranking
     - **max_context_length**: Maximum context length for LLM
     - **X-Tenant-ID**: Tenant identifier (header)
-    
+
     **Returns:**
     - Generated answer or search results
     - Source documents with relevance scores
@@ -197,45 +197,48 @@ async def query_documents(
     - Processing metadata
     """
     if not query_processor:
-        raise HTTPException(
-            status_code=503,
-            detail="Query service not initialized"
-        )
-    
+        raise HTTPException(status_code=503, detail="Query service not initialized")
+
     try:
-        logger.info(f"Processing query: {request.query[:100]}... (mode: {request.mode})")
-        
+        logger.info(
+            f"Processing query: {request.query[:100]}... (mode: {request.mode})"
+        )
+
         start_time = time.time()
-        
+
         # Convert filter to dict if provided
         filter_params = request.filter.dict() if request.filter else None
-        
+
         # Perform semantic search to get relevant documents
         search_results = query_processor.semantic_search(
             query=request.query,
             top_k=request.top_k,
             score_threshold=request.score_threshold,
             filter_params=filter_params,
-            tenant_id=tenant_id
+            tenant_id=tenant_id,
         )
-        
+
         # Apply entity filtering if specified
-        if request.filter and (request.filter.entity_labels or request.filter.entity_text):
+        if request.filter and (
+            request.filter.entity_labels or request.filter.entity_text
+        ):
             search_results = query_processor.filter_by_entities(
                 search_results,
                 entity_labels=request.filter.entity_labels,
-                entity_text=request.filter.entity_text
+                entity_text=request.filter.entity_text,
             )
-        
+
         # Rerank results if enabled
         if request.enable_reranking or settings.enable_reranking:
-            search_results = query_processor.rerank_results(request.query, search_results)
-        
+            search_results = query_processor.rerank_results(
+                request.query, search_results
+            )
+
         # Process based on query mode
         if request.mode == QueryMode.SEMANTIC_SEARCH:
             answer = f"Found {len(search_results)} relevant documents for your query."
             confidence_score = 0.8 if search_results else 0.1
-            
+
         elif request.mode == QueryMode.EXTRACTIVE_QA:
             if search_results:
                 # Extract answer from top result
@@ -246,62 +249,76 @@ async def query_documents(
             else:
                 answer = "No relevant documents found to answer your question."
                 confidence_score = 0.1
-                
+
         elif request.mode == QueryMode.RAG:
             if search_results:
                 # Generate RAG answer (async)
-                answer, confidence_score, truncation_occurred = await query_processor.generate_rag_answer(
+                (
+                    answer,
+                    confidence_score,
+                    truncation_occurred,
+                ) = await query_processor.generate_rag_answer(
                     request.query,
                     search_results,
-                    max_context_length=request.max_context_length
+                    max_context_length=request.max_context_length,
                 )
             else:
                 answer = "No relevant documents found to generate an answer."
                 confidence_score = 0.1
-        
+
         else:
-            raise HTTPException(status_code=400, detail=f"Invalid query mode: {request.mode}")
-        
+            raise HTTPException(
+                status_code=400, detail=f"Invalid query mode: {request.mode}"
+            )
+
         # Extract entities from query and results
         query_entities = query_processor.extract_entities(request.query)
         result_entities = query_processor.collect_entities_from_results(search_results)
-        
+
         # Combine and deduplicate entities
         all_entities = query_entities.copy()
         seen_entities = {(e["text"].lower(), e["label"]) for e in query_entities}
-        
+
         for entity in result_entities:
             entity_key = (entity["text"].lower(), entity["label"])
             if entity_key not in seen_entities:
                 seen_entities.add(entity_key)
                 all_entities.append(entity)
-        
+
         detected_entities = all_entities
-        
+
         # Format source documents
         sources = []
         for i, result in enumerate(search_results[:5]):  # Limit to top 5 sources
             # Ensure document_id is a valid UUID or skip this result
             document_id = result.get("document_id")
             if not document_id or document_id == "":
-                logger.warning(f"Skipping result with invalid document_id: {document_id}")
+                logger.warning(
+                    f"Skipping result with invalid document_id: {document_id}"
+                )
                 continue
-                
-            sources.append({
-                "document_id": document_id,
-                "filename": result.get("filename", "Unknown"),
-                "quoted_text": result["text"][:500] + "..." if len(result["text"]) > 500 else result["text"],
-                "relevance_score": result["score"],
-                "page_or_position": f"Result {i+1}",
-                "metadata": result.get("metadata", {}),
-                "chunk_id": result.get("chunk_id"),
-                "chunk_index": result.get("chunk_index"),
-                "total_chunks": result.get("total_chunks"),
-                "is_chunked": result.get("is_chunked")
-            })
-        
+
+            sources.append(
+                {
+                    "document_id": document_id,
+                    "filename": result.get("filename", "Unknown"),
+                    "quoted_text": (
+                        result["text"][:500] + "..."
+                        if len(result["text"]) > 500
+                        else result["text"]
+                    ),
+                    "relevance_score": result["score"],
+                    "page_or_position": f"Result {i + 1}",
+                    "metadata": result.get("metadata", {}),
+                    "chunk_id": result.get("chunk_id"),
+                    "chunk_index": result.get("chunk_index"),
+                    "total_chunks": result.get("total_chunks"),
+                    "is_chunked": result.get("is_chunked"),
+                }
+            )
+
         processing_time = (time.time() - start_time) * 1000
-        
+
         return QueryResponse(
             answer=answer,
             confidence_score=confidence_score,
@@ -310,134 +327,147 @@ async def query_documents(
             retrieved_documents_count=len(search_results),
             processing_time_ms=processing_time,
             query_mode=request.mode,
-            llm_provider=settings.llm_provider if request.mode == QueryMode.RAG else None,
-            llm_model=getattr(settings, f"{settings.llm_provider}_model", None) if request.mode == QueryMode.RAG else None
+            llm_provider=(
+                settings.llm_provider if request.mode == QueryMode.RAG else None
+            ),
+            llm_model=(
+                getattr(settings, f"{settings.llm_provider}_model", None)
+                if request.mode == QueryMode.RAG
+                else None
+            ),
         )
-        
+
     except ValueError as e:
         logger.error(f"Validation error: {e}")
-        raise HTTPException(status_code=400, detail=str(e))
-    
+        raise HTTPException(status_code=400, detail=str(e)) from e
+
     except Exception as e:
         logger.error(f"Query processing error: {e}", exc_info=True)
         raise HTTPException(
-            status_code=500,
-            detail=f"Failed to process query: {str(e)}"
-        )
+            status_code=500, detail=f"Failed to process query: {str(e)}"
+        ) from e
 
 
 @app.post("/search", response_model=SemanticSearchResponse)
 async def semantic_search(
     request: SemanticSearchRequest,
-    tenant_id: Optional[str] = Header(None, alias="X-Tenant-ID")
+    tenant_id: str | None = Header(None, alias="X-Tenant-ID"),
 ):
     """
     Semantic search endpoint for finding relevant documents.
-    
+
     **Parameters:**
     - **query**: Search query (required)
     - **top_k**: Number of results (default: 10)
     - **score_threshold**: Minimum similarity score (0-1)
     - **filter**: Filter parameters
     - **X-Tenant-ID**: Tenant identifier (header)
-    
+
     **Returns:**
     - List of relevant documents with scores
     """
     if not query_processor:
         raise HTTPException(status_code=503, detail="Query service not initialized")
-    
+
     try:
         logger.info(f"Semantic search: {request.query[:100]}...")
-        
+
         start_time = time.time()
-        
+
         # Convert filter to dict if provided
         filter_params = request.filter.dict() if request.filter else None
-        
+
         # Perform search
         results = query_processor.semantic_search(
             query=request.query,
             top_k=request.top_k,
             score_threshold=request.score_threshold,
             filter_params=filter_params,
-            tenant_id=tenant_id
+            tenant_id=tenant_id,
         )
-        
+
         # Apply entity filtering if specified
-        if request.filter and (request.filter.entity_labels or request.filter.entity_text):
+        if request.filter and (
+            request.filter.entity_labels or request.filter.entity_text
+        ):
             results = query_processor.filter_by_entities(
                 results,
                 entity_labels=request.filter.entity_labels,
-                entity_text=request.filter.entity_text
+                entity_text=request.filter.entity_text,
             )
-        
+
         # Rerank results if enabled
         if settings.enable_reranking:
             results = query_processor.rerank_results(request.query, results)
-        
+
         search_time = (time.time() - start_time) * 1000
-        
+
         # Format results
         formatted_results = []
         for result in results:
             # Ensure document_id is a valid UUID or skip this result
             document_id = result.get("document_id")
             if not document_id or document_id == "":
-                logger.warning(f"Skipping result with invalid document_id: {document_id}")
+                logger.warning(
+                    f"Skipping result with invalid document_id: {document_id}"
+                )
                 continue
-                
-            formatted_results.append({
-                "document_id": document_id,
-                "filename": result.get("filename", "Unknown"),
-                "quoted_text": result["text"][:500] + "..." if len(result["text"]) > 500 else result["text"],
-                "relevance_score": result["score"],
-                "page_or_position": None,
-                "metadata": result.get("metadata", {}),
-                "chunk_id": result.get("chunk_id"),
-                "chunk_index": result.get("chunk_index"),
-                "total_chunks": result.get("total_chunks"),
-                "is_chunked": result.get("is_chunked")
-            })
-        
+
+            formatted_results.append(
+                {
+                    "document_id": document_id,
+                    "filename": result.get("filename", "Unknown"),
+                    "quoted_text": (
+                        result["text"][:500] + "..."
+                        if len(result["text"]) > 500
+                        else result["text"]
+                    ),
+                    "relevance_score": result["score"],
+                    "page_or_position": None,
+                    "metadata": result.get("metadata", {}),
+                    "chunk_id": result.get("chunk_id"),
+                    "chunk_index": result.get("chunk_index"),
+                    "total_chunks": result.get("total_chunks"),
+                    "is_chunked": result.get("is_chunked"),
+                }
+            )
+
         # Extract entities from query and results for semantic search
         query_entities = query_processor.extract_entities(request.query)
         result_entities = query_processor.collect_entities_from_results(results)
-        
+
         # Combine and deduplicate entities
         all_entities = query_entities.copy()
         seen_entities = {(e["text"].lower(), e["label"]) for e in query_entities}
-        
+
         for entity in result_entities:
             entity_key = (entity["text"].lower(), entity["label"])
             if entity_key not in seen_entities:
                 seen_entities.add(entity_key)
                 all_entities.append(entity)
-        
+
         return SemanticSearchResponse(
             query=request.query,
             results=formatted_results,
             total_results=len(formatted_results),
             search_time_ms=search_time,
-            detected_entities=all_entities
+            detected_entities=all_entities,
         )
-        
+
     except Exception as e:
         logger.error(f"Semantic search error: {e}", exc_info=True)
         raise HTTPException(
-            status_code=500,
-            detail=f"Semantic search failed: {str(e)}"
-        )
+            status_code=500, detail=f"Semantic search failed: {str(e)}"
+        ) from e
 
 
 @app.post("/qa", response_model=QAResponse)
 async def question_answering(
-    request: QARequest,
-    tenant_id: Optional[str] = Header(None, alias="X-Tenant-ID")
+    request: QARequest, tenant_id: str | None = Header(None, alias="X-Tenant-ID")
 ):
     """
     Question-answering endpoint with RAG mode.
-    
+
     **Parameters:**
     - **question**: Question to answer (required)
     - **mode**: QA mode - rag (default)
@@ -445,7 +475,7 @@ async def question_answering(
     - **filter**: Filter parameters
     - **max_context_length**: Maximum context length for LLM
     - **X-Tenant-ID**: Tenant identifier (header)
-    
+
     **Returns:**
     - Generated answer with confidence score
     - Source documents
@@ -453,88 +483,104 @@ async def question_answering(
     """
     if not query_processor:
         raise HTTPException(status_code=503, detail="Query service not initialized")
-    
+
     try:
         logger.info(f"QA request: {request.question[:100]}... (mode: {request.mode})")
-        
+
         start_time = time.time()
-        
+
         # Convert filter to dict if provided
         filter_params = request.filter.dict() if request.filter else None
-        
+
         # Perform semantic search to get relevant documents
         search_results = query_processor.semantic_search(
             query=request.question,
             top_k=request.top_k,
             score_threshold=-5.0,  # Lower threshold for QA (negative scores are common)
             filter_params=filter_params,
-            tenant_id=tenant_id
+            tenant_id=tenant_id,
         )
-        
+
         # Apply entity filtering if specified
-        if request.filter and (request.filter.entity_labels or request.filter.entity_text):
+        if request.filter and (
+            request.filter.entity_labels or request.filter.entity_text
+        ):
             search_results = query_processor.filter_by_entities(
                 search_results,
                 entity_labels=request.filter.entity_labels,
-                entity_text=request.filter.entity_text
+                entity_text=request.filter.entity_text,
             )
-        
+
         # Process based on QA mode
         if request.mode == QueryMode.RAG:
             if search_results:
                 # Generate RAG answer (async)
-                answer, confidence_score, truncation_occurred = await query_processor.generate_rag_answer(
+                (
+                    answer,
+                    confidence_score,
+                    truncation_occurred,
+                ) = await query_processor.generate_rag_answer(
                     request.question,
                     search_results,
-                    max_context_length=request.max_context_length
+                    max_context_length=request.max_context_length,
                 )
             else:
                 answer = "No relevant documents found to generate an answer."
                 confidence_score = 0.1
-        
+
         else:
-            raise HTTPException(status_code=400, detail=f"Invalid QA mode: {request.mode}")
-        
+            raise HTTPException(
+                status_code=400, detail=f"Invalid QA mode: {request.mode}"
+            )
+
         # Extract entities from question and results
         query_entities = query_processor.extract_entities(request.question)
         result_entities = query_processor.collect_entities_from_results(search_results)
-        
+
         # Combine and deduplicate entities
         all_entities = query_entities.copy()
         seen_entities = {(e["text"].lower(), e["label"]) for e in query_entities}
-        
+
         for entity in result_entities:
             entity_key = (entity["text"].lower(), entity["label"])
             if entity_key not in seen_entities:
                 seen_entities.add(entity_key)
                 all_entities.append(entity)
-        
+
         detected_entities = all_entities
-        
+
         # Format source documents
         sources = []
         for i, result in enumerate(search_results[:3]):  # Limit to top 3 sources for QA
             # Ensure document_id is a valid UUID or skip this result
             document_id = result.get("document_id")
             if not document_id or document_id == "":
-                logger.warning(f"Skipping result with invalid document_id: {document_id}")
+                logger.warning(
+                    f"Skipping result with invalid document_id: {document_id}"
+                )
                 continue
-                
-            sources.append({
-                "document_id": document_id,
-                "filename": result.get("filename", "Unknown"),
-                "quoted_text": result["text"][:300] + "..." if len(result["text"]) > 300 else result["text"],
-                "relevance_score": result["score"],
-                "page_or_position": f"Source {i+1}",
-                "metadata": result.get("metadata", {}),
-                "chunk_id": result.get("chunk_id"),
-                "chunk_index": result.get("chunk_index"),
-                "total_chunks": result.get("total_chunks"),
-                "is_chunked": result.get("is_chunked")
-            })
-        
+
+            sources.append(
+                {
+                    "document_id": document_id,
+                    "filename": result.get("filename", "Unknown"),
+                    "quoted_text": (
+                        result["text"][:300] + "..."
+                        if len(result["text"]) > 300
+                        else result["text"]
+                    ),
+                    "relevance_score": result["score"],
+                    "page_or_position": f"Source {i + 1}",
+                    "metadata": result.get("metadata", {}),
+                    "chunk_id": result.get("chunk_id"),
+                    "chunk_index": result.get("chunk_index"),
+                    "total_chunks": result.get("total_chunks"),
+                    "is_chunked": result.get("is_chunked"),
+                }
+            )
+
         processing_time = (time.time() - start_time) * 1000
-        
+
         return QAResponse(
             answer=answer,
             confidence_score=confidence_score,
@@ -542,43 +588,48 @@ async def question_answering(
             detected_entities=detected_entities,
             processing_time_ms=processing_time,
             mode=request.mode,
-            llm_provider=settings.llm_provider if request.mode == QueryMode.RAG else None,
-            llm_model=getattr(settings, f"{settings.llm_provider}_model", None) if request.mode == QueryMode.RAG else None
+            llm_provider=(
+                settings.llm_provider if request.mode == QueryMode.RAG else None
+            ),
+            llm_model=(
+                getattr(settings, f"{settings.llm_provider}_model", None)
+                if request.mode == QueryMode.RAG
+                else None
+            ),
         )
-        
+
     except Exception as e:
         logger.error(f"QA processing error: {e}", exc_info=True)
         raise HTTPException(
-            status_code=500,
-            detail=f"Question answering failed: {str(e)}"
-        )
+            status_code=500, detail=f"Question answering failed: {str(e)}"
+        ) from e
 
 
 @app.get("/collection/info", response_model=CollectionInfo)
 async def get_collection_info():
     """
     Get information about the Qdrant collection.
-    
+
     **Returns:**
     - Collection metadata and statistics
     """
     if not query_processor:
         raise HTTPException(status_code=503, detail="Query service not initialized")
-    
+
     try:
         collection_info = query_processor.qdrant_client.get_collection(
             collection_name=settings.qdrant_collection_name
         )
-        
+
         return CollectionInfo(
             name=settings.qdrant_collection_name,
             vector_size=collection_info.config.params.vectors.size,
             points_count=collection_info.points_count,
-            status=collection_info.status
+            status=collection_info.status,
         )
     except Exception as e:
         logger.error(f"Failed to get collection info: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 # Error handlers
@@ -587,10 +638,7 @@ async def http_exception_handler(request, exc):
     """Custom HTTP exception handler."""
     return JSONResponse(
         status_code=exc.status_code,
-        content=ErrorResponse(
-            error=exc.detail,
-            detail=str(exc)
-        ).model_dump()
+        content=ErrorResponse(error=exc.detail, detail=str(exc)).model_dump(),
     )
 
 
@@ -601,9 +649,8 @@ async def general_exception_handler(request, exc):
     return JSONResponse(
         status_code=500,
         content=ErrorResponse(
-            error="Internal server error",
-            detail=str(exc)
-        ).model_dump()
+            error="Internal server error", detail=str(exc)
+        ).model_dump(),
     )
 
 
@@ -614,5 +661,5 @@ if __name__ == "__main__":
         host=settings.host,
         port=settings.port,
         reload=True,
-        log_level=settings.log_level.lower()
+        log_level=settings.log_level.lower(),
     )

@@ -276,7 +276,7 @@ services:
 
   # PRODUCTION WORKER CONFIGURATION
   # Optimized for 50-100 documents/minute throughput (10-20 MB files)
-  
+
   # OCR Workers - HIGHEST PRIORITY (BOTTLENECK)
   # Throughput Strategy: Multiple replicas with high concurrency
   # Target: 25 concurrent OCR operations (scales with file size)
@@ -616,34 +616,34 @@ networks:
 
 # PRODUCTION THROUGHPUT SUMMARY (10-20 MB Files):
 # ================================================
-# 
+#
 # File Size Impact:
 # - Minimum file size: 10 MB per document (production requirement)
 # - Maximum file size: 20 MB per document (system limit)
 # - Average file size: 15 MB per document (midpoint for calculations)
 # - Processing time scales with file size: Larger files take proportionally longer
-# 
+#
 # Expected Performance:
 # - OCR Workers: 5 replicas × 5 concurrency = 25 concurrent operations
-# - NER Workers: 3 replicas × 3 concurrency = 9 concurrent operations  
+# - NER Workers: 3 replicas × 3 concurrency = 9 concurrent operations
 # - Embedding Workers: 3 replicas × 2 concurrency = 6 concurrent operations
 # - Total OCR Capacity: ~65-150 documents/minute (assuming 20-45s per 15MB doc)
 # - Total NER Capacity: ~135-360 documents/minute (assuming 3-8s per doc)
 # - Total Embedding Capacity: ~30-72 documents/minute (assuming 5-12s per doc)
-# 
+#
 # System Bottleneck: OCR processing (scales with file size)
 # Realistic Throughput: 50-100 documents/minute (10-20 MB files)
-# 
+#
 # Resource Requirements:
 # - Total CPU: ~25-30 cores
 # - Total Memory: ~80-100 GB
 # - Storage Growth: ~2.2 TB/day (at 100 docs/min × 20 MB avg)
-# 
+#
 # Scaling Strategy:
 # - OCR Workers: Scale first (primary bottleneck, scales with file size)
 # - NER Workers: Scale second (secondary bottleneck)
 # - Embedding Workers: Scale based on memory availability
 # - Database: Consider read replicas for high query volume
 # - Redis: Consider clustering for high message volume
-# 
+#
 # Note: All calculations assume 10-20 MB file sizes as per production requirements

@@ -24,6 +24,7 @@ MANIFEST
 
 # Virtual Environment
 venv/
+venv-dev/
 env/
 ENV/
 env.bak/
@@ -52,6 +53,11 @@ coverage.xml
 dmypy.json
 .pyre/
 .pytype/
+
+# Linting and formatting
+.ruff_cache/
+.bandit_cache/
+.pre-commit-cache/
 
 # Secrets and credentials
 *.key

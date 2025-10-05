@@ -17,9 +17,9 @@ check_service() {
     local name=$1
     local url=$2
     local expected_status=${3:-200}
-    
+
     echo -n "Checking $name... "
-    
+
     if response=$(curl -s -o /dev/null -w "%{http_code}" "$url" 2>/dev/null); then
         if [ "$response" = "$expected_status" ]; then
             echo -e "${GREEN}✓ OK${NC}"
@@ -38,9 +38,9 @@ check_service() {
 check_metric() {
     local metric_name=$1
     local description=$2
-    
+
     echo -n "Checking $description... "
-    
+
     if curl -s "http://localhost:8003/metrics" | grep -q "$metric_name"; then
         echo -e "${GREEN}✓ OK${NC}"
         return 0
@@ -54,9 +54,9 @@ check_metric() {
 check_prometheus_target() {
     local job_name=$1
     local description=$2
-    
+
     echo -n "Checking $description... "
-    
+
     if curl -s "http://localhost:9090/api/v1/targets" | jq -e ".data.activeTargets[] | select(.job==\"$job_name\" and .health==\"up\")" > /dev/null 2>&1; then
         echo -e "${GREEN}✓ OK${NC}"
         return 0
@@ -69,7 +69,7 @@ check_prometheus_target() {
 # Function to check Grafana datasource
 check_grafana_datasource() {
     echo -n "Checking Grafana datasource... "
-    
+
     if curl -s -u admin:admin "http://localhost:3000/api/datasources" | jq -e '.[] | select(.name=="Prometheus" and .uid=="prometheus")' > /dev/null 2>&1; then
         echo -e "${GREEN}✓ OK${NC}"
         return 0
@@ -82,7 +82,7 @@ check_grafana_datasource() {
 # Function to check Grafana dashboard
 check_grafana_dashboard() {
     echo -n "Checking Grafana dashboard... "
-    
+
     if curl -s -u admin:admin "http://localhost:3000/api/dashboards/uid/ingestion-overview" | jq -e '.dashboard.title' > /dev/null 2>&1; then
         echo -e "${GREEN}✓ OK${NC}"
         return 0
@@ -95,7 +95,7 @@ check_grafana_dashboard() {
 # Function to check if metrics are flowing
 check_metrics_flow() {
     echo -n "Checking metrics flow... "
-    
+
     if curl -s "http://localhost:9090/api/v1/query?query=ingestion_http_requests_total" | jq -e '.data.result | length > 0' > /dev/null 2>&1; then
         echo -e "${GREEN}✓ OK${NC}"
         return 0

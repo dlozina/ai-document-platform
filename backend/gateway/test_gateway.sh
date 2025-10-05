@@ -27,7 +27,7 @@ test_endpoint() {
     local expected_status=$3
     local description=$4
     local data=$5
-    
+
     if [ -n "$data" ]; then
         response=$(curl -s -w "%{http_code}" -X $method "http://localhost:8005$endpoint" \
             -H "Content-Type: application/json" \
@@ -35,10 +35,10 @@ test_endpoint() {
     else
         response=$(curl -s -w "%{http_code}" -X $method "http://localhost:8005$endpoint")
     fi
-    
+
     status_code="${response: -3}"
     body="${response%???}"
-    
+
     if [ "$status_code" = "$expected_status" ]; then
         print_status 0 "$description"
         return 0

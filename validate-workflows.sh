@@ -30,7 +30,7 @@ echo "✅ Workflows directory exists"
 for workflow in "${REQUIRED_WORKFLOWS[@]}"; do
     if [ -f "$WORKFLOWS_DIR/$workflow" ]; then
         echo "✅ Found workflow: $workflow"
-        
+
         # Basic YAML validation
         if command -v yq >/dev/null 2>&1; then
             if yq eval '.' "$WORKFLOWS_DIR/$workflow" >/dev/null 2>&1; then

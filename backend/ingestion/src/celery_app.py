@@ -4,10 +4,12 @@ Celery Configuration for Ingestion Service
 Production-ready Celery setup with Redis broker, optimized for 60 files/minute processing.
 """
 
-import os
 import logging
+import os
+
 from celery import Celery, signals
 from kombu import Queue
+
 from .config import get_settings
 
 logger = logging.getLogger(__name__)
@@ -22,10 +24,10 @@ celery_app = Celery(
     backend=settings.celery_result_backend,
     include=[
         "src.tasks.ocr_tasks",
-        "src.tasks.ner_tasks", 
+        "src.tasks.ner_tasks",
         "src.tasks.embedding_tasks",
-        "src.tasks.completion_tasks"
-    ]
+        "src.tasks.completion_tasks",
+    ],
 )
 
 # Celery Configuration
@@ -37,7 +39,6 @@ celery_app.conf.update(
         "src.tasks.embedding_tasks.*": {"queue": "embedding_queue"},
         "src.tasks.completion_tasks.*": {"queue": "completion_queue"},
     },
-    
     # Queue configuration
     task_default_queue="default",
     task_queues=(
@@ -48,41 +49,33 @@ celery_app.conf.update(
         Queue("completion_queue", routing_key="completion"),
         Queue("dead_letter_queue", routing_key="dead_letter"),
     ),
-    
     # Task execution
     task_serializer="json",
     accept_content=["json"],
     result_serializer="json",
     timezone="UTC",
     enable_utc=True,
-    
     # Task time limits (optimized for 10MB files)
     task_time_limit=300,  # 5 minutes max per task
     task_soft_time_limit=240,  # 4 minutes soft limit
     worker_prefetch_multiplier=1,  # Process one task at a time for FIFO
-    
     # Retry configuration
     task_acks_late=True,
     worker_disable_rate_limits=False,
     task_reject_on_worker_lost=True,
-    
     # Result backend
     result_expires=3600,  # Results expire after 1 hour
     result_persistent=True,
-    
     # Monitoring
     worker_send_task_events=True,
     task_send_sent_event=True,
-    
     # Error handling
     task_ignore_result=False,
     task_store_eager_result=True,
-    
     # Redis connection
     broker_connection_retry_on_startup=True,
     broker_connection_retry=True,
     broker_connection_max_retries=10,
-    
     # Worker configuration
     worker_max_tasks_per_child=1000,  # Restart worker after 1000 tasks
     worker_max_memory_per_child=200000,  # 200MB memory limit per worker
@@ -107,7 +100,7 @@ RETRY_POLICIES = {
         "countdown": 15,  # Start with 15 seconds
         "max_countdown": 60,  # Max 1 minute
         "multiplier": 2,
-    }
+    },
 }
 
 # Task priority levels
@@ -196,21 +189,25 @@ celery_app.conf.update(SECURITY_CONFIG)
 # Development vs Production configuration
 if os.getenv("ENVIRONMENT", "development") == "production":
     # Production-specific settings
-    celery_app.conf.update({
-        "worker_prefetch_multiplier": 1,  # Conservative prefetch
-        "task_acks_late": True,
-        "worker_disable_rate_limits": False,
-        "task_reject_on_worker_lost": True,
-        "worker_max_tasks_per_child": 1000,
-        "worker_max_memory_per_child": 200000,
-    })
+    celery_app.conf.update(
+        {
+            "worker_prefetch_multiplier": 1,  # Conservative prefetch
+            "task_acks_late": True,
+            "worker_disable_rate_limits": False,
+            "task_reject_on_worker_lost": True,
+            "worker_max_tasks_per_child": 1000,
+            "worker_max_memory_per_child": 200000,
+        }
+    )
 else:
     # Development-specific settings
-    celery_app.conf.update({
-        "task_always_eager": False,  # Use async in dev too
-        "worker_prefetch_multiplier": 1,
-        "task_acks_late": True,
-    })
+    celery_app.conf.update(
+        {
+            "task_always_eager": False,  # Use async in dev too
+            "worker_prefetch_multiplier": 1,
+            "task_acks_late": True,
+        }
+    )
 
 # Celery Beat configuration (currently not used)
 # celery_app.conf.beat_schedule = {}
@@ -229,17 +226,17 @@ def initialize_worker_resources(sender=None, **kwargs):
     try:
         # Initialize Qdrant manager for workers
         from .qdrant_client import initialize_qdrant_manager
-        
+
         initialize_qdrant_manager(
             host=settings.qdrant_host,
             port=settings.qdrant_port,
             api_key=settings.qdrant_api_key,
             collection_name=settings.qdrant_collection_name,
-            vector_size=settings.qdrant_vector_size
+            vector_size=settings.qdrant_vector_size,
         )
-        
+
         logger.info("Worker resources initialized successfully")
-        
+
     except Exception as e:
         logger.error(f"Failed to initialize worker resources: {e}")
         raise

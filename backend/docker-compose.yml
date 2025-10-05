@@ -195,7 +195,7 @@ services:
       - backend-network
 
   # Specialized Processing Workers - Hybrid Approach
-  
+
   # OCR Worker (Highest Priority - Most Resource Intensive)
   celery-worker-ocr:
     build: ./ingestion

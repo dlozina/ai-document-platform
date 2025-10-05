@@ -5,45 +5,42 @@ FastAPI application that exposes OCR functionality via REST endpoints.
 """
 
 import logging
-import time
-from typing import Optional
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, File, UploadFile, HTTPException, BackgroundTasks, Header
-from fastapi.responses import JSONResponse
-from pydantic import BaseModel, Field
 import uvicorn
+from fastapi import BackgroundTasks, FastAPI, File, Header, HTTPException, UploadFile
+from fastapi.responses import JSONResponse
 
-from .ocr_processor import OCRProcessor
 from .config import get_settings
+from .models import ErrorResponse, HealthResponse, OCRResponse
+from .ocr_processor import OCRProcessor
 
 # Configure logging
 logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
 
 # Global OCR processor instance
-ocr_processor: Optional[OCRProcessor] = None
+ocr_processor: OCRProcessor | None = None
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Initialize and cleanup resources."""
     global ocr_processor
-    
+
     logger.info("Starting OCR Service...")
     settings = get_settings()
     ocr_processor = OCRProcessor(
         dpi=settings.ocr_dpi,
         language=settings.tesseract_lang,
-        enable_language_detection=settings.enable_language_detection
+        enable_language_detection=settings.enable_language_detection,
     )
     logger.info(f"OCR Service ready with language: {settings.tesseract_lang}")
-    
+
     yield
-    
+
     logger.info("Shutting down OCR Service...")
 
 
@@ -52,25 +49,25 @@ app = FastAPI(
     title="OCR Service",
     description="""
     ## Production-ready OCR Service
-    
+
     Extract text from PDFs and images using advanced OCR technology.
-    
+
     ### Features:
     - **Native PDF text extraction** for searchable PDFs (fast)
     - **OCR processing** for scanned documents and images
     - **Layout extraction** with bounding box coordinates
     - **Async processing** for large files
     - **Multiple file formats** support
-    
+
     ### Supported Formats:
     - **PDFs**: `.pdf` (both searchable and scanned)
     - **Images**: `.png`, `.jpg`, `.jpeg`, `.tiff`, `.bmp`, `.gif`
-    
+
     ### Processing Methods:
     1. **Native PDF**: Fast text extraction from searchable PDFs
     2. **OCR PDF**: Convert PDF to images and run OCR
     3. **OCR Image**: Direct OCR on image files
-    
+
     ### Performance Tips:
     - Use native PDF extraction when possible (faster)
     - Higher DPI = better quality but slower processing
@@ -87,30 +84,22 @@ app = FastAPI(
         "url": "https://opensource.org/licenses/MIT",
     },
     servers=[
-        {
-            "url": "http://localhost:8000",
-            "description": "Development server"
-        },
-        {
-            "url": "https://api.example.com",
-            "description": "Production server"
-        }
-    ]
+        {"url": "http://localhost:8000", "description": "Development server"},
+        {"url": "https://api.example.com", "description": "Production server"},
+    ],
 )
 
 
-from .models import OCRResponse, HealthResponse, ErrorResponse
-
-
 # API Endpoints
+
 
 @app.get("/health", response_model=HealthResponse)
 async def health_check():
     """
     Health check endpoint.
-    
+
     Returns service status and dependencies availability.
-    
+
     **Returns:**
     - Service status (healthy/degraded)
     - Service information
@@ -118,16 +107,17 @@ async def health_check():
     """
     try:
         import pytesseract
-        tesseract_version = pytesseract.get_tesseract_version()
+
+        pytesseract.get_tesseract_version()
         tesseract_available = True
     except Exception:
         tesseract_available = False
-    
+
     return HealthResponse(
         status="healthy" if tesseract_available else "degraded",
         service="ocr-service",
         version="1.0.0",
-        tesseract_available=tesseract_available
+        tesseract_available=tesseract_available,
     )
 
 
@@ -135,106 +125,97 @@ async def health_check():
 async def extract_text(
     file: UploadFile = File(..., description="PDF or image file to process"),
     force_ocr: bool = False,
-    tenant_id: Optional[str] = Header(None, alias="X-Tenant-ID"),
-    document_id: Optional[str] = Header(None, alias="X-Document-ID")
+    tenant_id: str | None = Header(None, alias="X-Tenant-ID"),
+    document_id: str | None = Header(None, alias="X-Document-ID"),
 ):
     """
     Extract text from uploaded PDF or image file.
-    
+
     **Supported formats:**
     - PDF (.pdf)
     - Images (.png, .jpg, .jpeg, .tiff, .bmp, .gif)
-    
+
     **Parameters:**
     - **file**: The document file to process (required)
     - **force_ocr**: Force OCR even for searchable PDFs (default: false)
     - **X-Tenant-ID**: Tenant identifier (header)
     - **X-Document-ID**: Document identifier (header)
-    
+
     **Returns:**
     - Extracted text and metadata
     """
     if not ocr_processor:
-        raise HTTPException(
-            status_code=503,
-            detail="OCR service not initialized"
-        )
-    
+        raise HTTPException(status_code=503, detail="OCR service not initialized")
+
     # Validate file size (max 10MB for this endpoint)
     max_size = 10 * 1024 * 1024  # 10MB
     content = await file.read()
     file_size = len(content)
-    
+
     if file_size > max_size:
         raise HTTPException(
             status_code=413,
-            detail=f"File too large. Maximum size: {max_size / 1024 / 1024:.0f}MB"
+            detail=f"File too large. Maximum size: {max_size / 1024 / 1024:.0f}MB",
         )
-    
+
     if file_size == 0:
-        raise HTTPException(
-            status_code=400,
-            detail="Empty file uploaded"
-        )
-    
+        raise HTTPException(status_code=400, detail="Empty file uploaded")
+
     try:
         logger.info(
             f"Processing file: {file.filename} "
             f"(size: {file_size / 1024:.2f}KB, tenant: {tenant_id})"
         )
-        
+
         # Process the file
         result = ocr_processor.process_file(
-            file_content=content,
-            filename=file.filename,
-            force_ocr=force_ocr
+            file_content=content, filename=file.filename, force_ocr=force_ocr
         )
-        
+
         # Add metadata
-        result['file_size_bytes'] = file_size
-        result['filename'] = file.filename
-        result['document_id'] = document_id
-        
+        result["file_size_bytes"] = file_size
+        result["filename"] = file.filename
+        result["document_id"] = document_id
+
         logger.info(
             f"Successfully processed {file.filename}: "
             f"{len(result['text'])} characters extracted"
         )
-        
+
         return OCRResponse(**result)
-        
+
     except ValueError as e:
         logger.error(f"Validation error: {e}")
-        raise HTTPException(status_code=400, detail=str(e))
-    
+        raise HTTPException(status_code=400, detail=str(e)) from e
+
     except Exception as e:
         logger.error(f"Processing error: {e}", exc_info=True)
         raise HTTPException(
-            status_code=500,
-            detail=f"Failed to process document: {str(e)}"
-        )
+            status_code=500, detail=f"Failed to process document: {str(e)}"
+        ) from e
 
 
 @app.post("/extract-async")
 async def extract_text_async(
     background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
-    callback_url: Optional[str] = None,
-    tenant_id: Optional[str] = Header(None, alias="X-Tenant-ID"),
-    document_id: Optional[str] = Header(None, alias="X-Document-ID")
+    callback_url: str | None = None,
+    tenant_id: str | None = Header(None, alias="X-Tenant-ID"),
+    document_id: str | None = Header(None, alias="X-Document-ID"),
 ):
     """
     Extract text asynchronously (for large files).
-    
+
     Process the file in the background and optionally POST results to callback_url.
-    
+
     **Returns:**
     - Job ID for status tracking
     """
     import uuid
-    
+
     job_id = str(uuid.uuid4())
     content = await file.read()
-    
+
     # Add background task
     background_tasks.add_task(
         process_file_background,
@@ -243,13 +224,13 @@ async def extract_text_async(
         filename=file.filename,
         callback_url=callback_url,
         tenant_id=tenant_id,
-        document_id=document_id
+        document_id=document_id,
     )
-    
+
     return {
         "job_id": job_id,
         "status": "processing",
-        "message": "File processing started in background"
+        "message": "File processing started in background",
     }
 
 
@@ -257,33 +238,30 @@ async def process_file_background(
     job_id: str,
     content: bytes,
     filename: str,
-    callback_url: Optional[str],
-    tenant_id: Optional[str],
-    document_id: Optional[str]
+    callback_url: str | None,
+    tenant_id: str | None,
+    document_id: str | None,
 ):
     """Background task for async processing."""
     try:
         logger.info(f"Background processing job {job_id} for {filename}")
-        
+
         result = ocr_processor.process_file(content, filename)
-        result['job_id'] = job_id
-        result['document_id'] = document_id
-        result['tenant_id'] = tenant_id
-        
+        result["job_id"] = job_id
+        result["document_id"] = document_id
+        result["tenant_id"] = tenant_id
+
         # If callback URL provided, POST results
         if callback_url:
             import httpx
+
             async with httpx.AsyncClient() as client:
-                await client.post(
-                    callback_url,
-                    json=result,
-                    timeout=10.0
-                )
+                await client.post(callback_url, json=result, timeout=10.0)
                 logger.info(f"Results posted to {callback_url}")
-        
+
         # TODO: Store results in database or message queue
         logger.info(f"Job {job_id} completed successfully")
-        
+
     except Exception as e:
         logger.error(f"Background job {job_id} failed: {e}", exc_info=True)
 
@@ -291,36 +269,32 @@ async def process_file_background(
 @app.post("/extract-layout")
 async def extract_with_layout(
     file: UploadFile = File(...),
-    tenant_id: Optional[str] = Header(None, alias="X-Tenant-ID")
+    tenant_id: str | None = Header(None, alias="X-Tenant-ID"),
 ):
     """
     Extract text with positional information (bounding boxes).
-    
+
     Useful for:
     - Preserving document layout
     - Table extraction
     - Form field detection
-    
+
     **Returns:**
     - List of words with bounding box coordinates
     """
     if not ocr_processor:
         raise HTTPException(status_code=503, detail="OCR service not initialized")
-    
+
     content = await file.read()
-    
+
     try:
         words = ocr_processor.extract_text_with_layout(content, file.filename)
-        
-        return {
-            "filename": file.filename,
-            "word_count": len(words),
-            "words": words
-        }
-    
+
+        return {"filename": file.filename, "word_count": len(words), "words": words}
+
     except Exception as e:
         logger.error(f"Layout extraction error: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 # Error handlers
@@ -329,10 +303,7 @@ async def http_exception_handler(request, exc):
     """Custom HTTP exception handler."""
     return JSONResponse(
         status_code=exc.status_code,
-        content=ErrorResponse(
-            error=exc.detail,
-            detail=str(exc)
-        ).model_dump()
+        content=ErrorResponse(error=exc.detail, detail=str(exc)).model_dump(),
     )
 
 
@@ -343,18 +314,11 @@ async def general_exception_handler(request, exc):
     return JSONResponse(
         status_code=500,
         content=ErrorResponse(
-            error="Internal server error",
-            detail=str(exc)
-        ).model_dump()
+            error="Internal server error", detail=str(exc)
+        ).model_dump(),
     )
 
 
 # Main entry point
 if __name__ == "__main__":
-    uvicorn.run(
-        "main:app",
-        host="0.0.0.0",
-        port=8000,
-        reload=True,
-        log_level="info"
-    )
+    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True, log_level="info")  # nosec B104 - Required for containerized microservice

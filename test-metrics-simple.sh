@@ -23,15 +23,15 @@ make_request() {
     local endpoint=$2
     local description=$3
     local data=$4
-    
+
     echo -n "Testing $description... "
-    
+
     if [ "$method" = "GET" ]; then
         response=$(curl -s -w "%{http_code}" -H "X-Tenant-ID: $TENANT_ID" "$BASE_URL$endpoint")
     else
         response=$(curl -s -w "%{http_code}" -H "X-Tenant-ID: $TENANT_ID" -X "$method" "$BASE_URL$endpoint" -d "$data")
     fi
-    
+
     http_code="${response: -3}"
     if [ "$http_code" = "200" ] || [ "$http_code" = "201" ]; then
         echo -e "${GREEN}✓ OK${NC}"
