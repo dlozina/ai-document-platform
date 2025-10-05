@@ -207,7 +207,7 @@ async def query_documents(
         start_time = time.time()
 
         # Convert filter to dict if provided
-        filter_params = request.filter.dict() if request.filter else None
+        filter_params = request.filter.model_dump() if request.filter else None
 
         # Perform semantic search to get relevant documents
         search_results = query_processor.semantic_search(
@@ -375,7 +375,7 @@ async def semantic_search(
         start_time = time.time()
 
         # Convert filter to dict if provided
-        filter_params = request.filter.dict() if request.filter else None
+        filter_params = request.filter.model_dump() if request.filter else None
 
         # Perform search
         results = query_processor.semantic_search(
@@ -490,7 +490,7 @@ async def question_answering(
         start_time = time.time()
 
         # Convert filter to dict if provided
-        filter_params = request.filter.dict() if request.filter else None
+        filter_params = request.filter.model_dump() if request.filter else None
 
         # Perform semantic search to get relevant documents
         search_results = query_processor.semantic_search(

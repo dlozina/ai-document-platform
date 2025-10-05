@@ -160,8 +160,10 @@ class TestServiceProxy:
     async def test_proxy_request_network_error(self):
         """Test proxy request with network error."""
         with patch("httpx.AsyncClient") as mock_client:
+            import httpx
+
             mock_client.return_value.__aenter__.return_value.request.side_effect = (
-                Exception("Network error")
+                httpx.RequestError("Network error")
             )
 
             with pytest.raises(HTTPException):  # HTTPException in actual usage

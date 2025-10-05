@@ -4,7 +4,7 @@ Utility functions for Query Service
 
 import hashlib
 import logging
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 
 logger = logging.getLogger(__name__)
@@ -232,7 +232,7 @@ def create_error_response(
         "error": error,
         "detail": detail,
         "error_code": error_code,
-        "timestamp": datetime.utcnow().isoformat(),
+        "timestamp": datetime.now(UTC).isoformat(),
     }
 
 

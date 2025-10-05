@@ -7,7 +7,7 @@ import io
 import logging
 import mimetypes
 import uuid
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -128,7 +128,7 @@ def generate_storage_path(tenant_id: str, filename: str, file_hash: str) -> str:
     safe_filename = sanitize_filename(filename)
 
     # Create path: tenant_id/year/month/day/hash_filename
-    now = datetime.utcnow()
+    now = datetime.now(UTC)
     path_parts = [
         tenant_id,
         str(now.year),
@@ -199,7 +199,7 @@ def calculate_retention_date(retention_days: int) -> datetime:
     Returns:
         Expiration datetime
     """
-    return datetime.utcnow() + timedelta(days=retention_days)
+    return datetime.now(UTC) + timedelta(days=retention_days)
 
 
 def generate_document_id() -> str:
@@ -236,7 +236,7 @@ def create_error_response(
     Returns:
         Error response dictionary
     """
-    response = {"error": error, "timestamp": datetime.utcnow().isoformat()}
+    response = {"error": error, "timestamp": datetime.now(UTC).isoformat()}
     if detail:
         response["detail"] = detail
     if error_code:
@@ -371,7 +371,7 @@ def extract_file_metadata(content: bytes, filename: str) -> dict[str, Any]:
         "filename": filename,
         "file_size_bytes": len(content),
         "file_hash": calculate_file_hash(content),
-        "upload_timestamp": datetime.utcnow().isoformat(),
+        "upload_timestamp": datetime.now(UTC).isoformat(),
     }
 
     # Detect file type

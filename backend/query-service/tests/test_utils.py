@@ -90,7 +90,7 @@ class TestKeywordExtraction:
 
         assert isinstance(keywords, list)
         assert len(keywords) <= 5
-        assert "Python" in keywords
+        assert "python" in keywords
         assert "programming" in keywords
 
     def test_extract_keywords_empty_text(self):

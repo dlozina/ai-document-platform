@@ -1,3 +1,11 @@
+# NOTE: This is  document processing platform docker compose file for development purposes.
+# For production, use the docker-compose.production.yml file.
+##############################################################
+# Only variable that developers need to change is the ${MISTRAL_API_KEY}
+# This is the Mistral API key for the Mistral model.
+# You can get the Mistral API key from the Mistral website. It has a generous free tier.
+##############################################################
+
 services:
   # OCR Service
   ocr-service:
@@ -74,6 +82,9 @@ services:
       - QDRANT_COLLECTION_NAME=embeddings
       - EMBEDDING_MODEL=sentence-transformers/all-MiniLM-L6-v2
       - LLM_PROVIDER=mistral
+      # This is the Mistral API key for the Mistral model.
+      # You can get the Mistral API key from the Mistral website. It has a generous free tier.
+      # Only variable that developers need to change for local development.
       - MISTRAL_API_KEY=${MISTRAL_API_KEY}
       - MISTRAL_MODEL=mistral-large-2411
       - LOG_LEVEL=INFO

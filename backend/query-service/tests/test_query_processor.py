@@ -351,7 +351,8 @@ class TestAnswerExtraction:
 class TestRAGGeneration:
     """Test RAG answer generation."""
 
-    def test_generate_rag_answer_success(self, query_processor):
+    @pytest.mark.asyncio
+    async def test_generate_rag_answer_success(self, query_processor):
         """Test successful RAG answer generation."""
         question = "What is Python?"
         context_documents = [
@@ -359,7 +360,7 @@ class TestRAGGeneration:
             {"text": "Python is used for web development", "filename": "doc2.pdf"},
         ]
 
-        answer, confidence = query_processor.generate_rag_answer(
+        answer, confidence, success = await query_processor.generate_rag_answer(
             question, context_documents
         )
 
@@ -367,11 +368,15 @@ class TestRAGGeneration:
         assert len(answer) > 0
         assert isinstance(confidence, float)
         assert 0.0 <= confidence <= 1.0
+        assert isinstance(success, bool)
         assert "Python" in answer
 
-    def test_generate_rag_answer_empty_context(self, query_processor):
+    @pytest.mark.asyncio
+    async def test_generate_rag_answer_empty_context(self, query_processor):
         """Test RAG with empty context."""
-        answer, confidence = query_processor.generate_rag_answer("test", [])
+        answer, confidence, success = await query_processor.generate_rag_answer(
+            "test", []
+        )
 
         assert isinstance(answer, str)
         assert confidence < 0.5

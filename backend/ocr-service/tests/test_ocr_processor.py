@@ -101,7 +101,7 @@ class TestOCRProcessor:
         assert result["page_count"] == 1
 
         # Check extracted text
-        assert "test PDF document" in result["text"].lower()
+        assert "this is a test pdf document" in result["text"].lower()
         assert "multiple lines" in result["text"].lower()
 
     def test_force_ocr_on_pdf(self, ocr_processor, sample_pdf):
@@ -116,7 +116,9 @@ class TestOCRProcessor:
 
     def test_unsupported_file_type(self, ocr_processor):
         """Test handling of unsupported file types."""
-        with pytest.raises(ValueError, match="Unsupported file type"):
+        with pytest.raises(
+            RuntimeError, match="OCR processing failed: Unsupported file type"
+        ):
             ocr_processor.process_file(
                 file_content=b"fake content", filename="test.txt"
             )

@@ -2,7 +2,7 @@
 Authentication and security utilities for API Gateway Service
 """
 
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import httpx
@@ -50,9 +50,9 @@ class AuthManager:
         """Create an access token."""
         to_encode = data.copy()
         if expires_delta:
-            expire = datetime.utcnow() + expires_delta
+            expire = datetime.now(UTC) + expires_delta
         else:
-            expire = datetime.utcnow() + timedelta(
+            expire = datetime.now(UTC) + timedelta(
                 minutes=self.access_token_expire_minutes
             )
 
@@ -63,7 +63,7 @@ class AuthManager:
     def create_refresh_token(self, data: dict[str, Any]) -> str:
         """Create a refresh token."""
         to_encode = data.copy()
-        expire = datetime.utcnow() + timedelta(days=self.refresh_token_expire_days)
+        expire = datetime.now(UTC) + timedelta(days=self.refresh_token_expire_days)
         to_encode.update({"exp": expire, "type": "refresh"})
         encoded_jwt = jwt.encode(to_encode, self.secret_key, algorithm=self.algorithm)
         return encoded_jwt
@@ -113,7 +113,7 @@ class RateLimiter:
         if not self.enabled:
             return False, {}
 
-        now = datetime.utcnow()
+        now = datetime.now(UTC)
         minute_key = (
             f"rate_limit:{user_id}:{endpoint}:minute:{now.strftime('%Y-%m-%d-%H-%M')}"
         )

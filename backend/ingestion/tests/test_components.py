@@ -100,7 +100,7 @@ class TestUtils:
         path = generate_storage_path("tenant123", "test.pdf", "abc123def456")
 
         assert path.startswith("tenant123/")
-        assert "abc123def456" in path
+        assert "abc123de" in path  # Only first 8 chars of hash are used
         assert path.endswith("test.pdf")
 
     def test_sanitize_filename(self):

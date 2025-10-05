@@ -85,7 +85,10 @@ class TestEmbeddingProcessor:
             text=text, embedding=embedding, document_id=document_id, metadata=metadata
         )
 
-        assert result == document_id
+        # The method converts document_id to UUID, so we check it's a valid UUID string
+        assert isinstance(result, str)
+        assert len(result) == 36  # UUID string length
+        assert result.count("-") == 4  # UUID format
         mock_processor.qdrant_client.upsert.assert_called_once()
 
         # Verify the call arguments
@@ -94,7 +97,10 @@ class TestEmbeddingProcessor:
         assert len(call_args[1]["points"]) == 1
 
         point = call_args[1]["points"][0]
-        assert point.id == document_id
+        # The point ID is converted to UUID, so check it's a valid UUID string
+        assert isinstance(point.id, str)
+        assert len(point.id) == 36  # UUID string length
+        assert point.id.count("-") == 4  # UUID format
         assert point.vector == embedding
         assert point.payload["text"] == text
         assert point.payload["source"] == "test"
@@ -155,19 +161,21 @@ class TestEmbeddingProcessor:
         file_content = b"This is a test text file"
         filename = "test.txt"
 
-        # Mock the embedding generation and storage
-        mock_processor.generate_embedding.return_value = [0.1, 0.2, 0.3]
-        mock_processor.store_embedding.return_value = "test_point_id"
+        # Mock the embedding generation and storage methods
+        with patch.object(
+            mock_processor, "generate_embedding", return_value=[0.1, 0.2, 0.3]
+        ) as mock_gen, patch.object(
+            mock_processor, "store_embedding", return_value="test_point_id"
+        ) as mock_store:
+            result = mock_processor.process_text_file(
+                file_content=file_content, filename=filename, document_id="test_doc"
+            )
 
-        result = mock_processor.process_text_file(
-            file_content=file_content, filename=filename, document_id="test_doc"
-        )
-
-        assert result["text"] == "This is a test text file"
-        assert result["embedding"] == [0.1, 0.2, 0.3]
-        assert result["filename"] == filename
-        assert result["method"] == "embed_text_txt"
-        assert result["point_id"] == "test_point_id"
+            assert result["text"] == "This is a test text file"
+            assert result["embedding"] == [0.1, 0.2, 0.3]
+            assert result["filename"] == filename
+            assert result["method"] == "embed_text_txt"
+            assert result["point_id"] == "test_point_id"
 
     def test_process_text_file_json(self, mock_processor):
         """Test processing JSON file."""
@@ -175,38 +183,45 @@ class TestEmbeddingProcessor:
         file_content = json.dumps(json_data).encode("utf-8")
         filename = "test.json"
 
-        mock_processor.generate_embedding.return_value = [0.1, 0.2, 0.3]
-        mock_processor.store_embedding.return_value = "test_point_id"
+        with patch.object(
+            mock_processor, "generate_embedding", return_value=[0.1, 0.2, 0.3]
+        ) as mock_gen, patch.object(
+            mock_processor, "store_embedding", return_value="test_point_id"
+        ) as mock_store:
+            result = mock_processor.process_text_file(
+                file_content=file_content, filename=filename
+            )
 
-        result = mock_processor.process_text_file(
-            file_content=file_content, filename=filename
-        )
-
-        assert result["text"] == "This is JSON content"
-        assert result["method"] == "embed_text_json"
+            assert result["text"] == "This is JSON content"
+            assert result["method"] == "embed_text_json"
 
     def test_process_text_file_csv(self, mock_processor):
         """Test processing CSV file."""
         csv_content = b"name,description\nItem1,Description1\nItem2,Description2"
         filename = "test.csv"
 
-        mock_processor.generate_embedding.return_value = [0.1, 0.2, 0.3]
-        mock_processor.store_embedding.return_value = "test_point_id"
+        with patch.object(
+            mock_processor, "generate_embedding", return_value=[0.1, 0.2, 0.3]
+        ) as mock_gen, patch.object(
+            mock_processor, "store_embedding", return_value="test_point_id"
+        ) as mock_store:
+            result = mock_processor.process_text_file(
+                file_content=csv_content, filename=filename
+            )
 
-        result = mock_processor.process_text_file(
-            file_content=csv_content, filename=filename
-        )
-
-        assert "Item1" in result["text"]
-        assert "Item2" in result["text"]
-        assert result["method"] == "embed_text_csv"
+            assert "Item1" in result["text"]
+            assert "Item2" in result["text"]
+            assert result["method"] == "embed_text_csv"
 
     def test_process_text_file_unsupported_format(self, mock_processor):
         """Test processing unsupported file format."""
         file_content = b"Some binary content"
         filename = "test.exe"
 
-        with pytest.raises(ValueError, match="Unsupported text file format"):
+        with pytest.raises(
+            RuntimeError,
+            match="Text file processing failed: Unsupported text file format",
+        ):
             mock_processor.process_text_file(
                 file_content=file_content, filename=filename
             )
@@ -251,8 +266,12 @@ class TestEmbeddingProcessor:
         """Test health check functionality."""
         # Mock successful health checks
         mock_processor.model.encode.return_value = np.array([0.1, 0.2, 0.3])
+        mock_collection = Mock()
+        mock_collection.name = (
+            "test_collection"  # Match the collection name from the fixture
+        )
         mock_processor.qdrant_client.get_collections.return_value = Mock(
-            collections=[Mock(name="test_collection")]
+            collections=[mock_collection]
         )
 
         result = mock_processor.health_check()
