@@ -38,9 +38,6 @@ docker-compose ps
 
 <img width="3037" height="1174" alt="Image" src="https://github.com/user-attachments/assets/f8cd39cb-a2b1-4189-a142-ca24c60c8eec" />
 
-<img width="3042" height="1197" alt="Image" src="https://github.com/user-attachments/assets/d908abb2-475e-456e-b8b7-1059d94fabf4" />
-
-
 ### 4. Test Metrics Collection
 
 ```bash
