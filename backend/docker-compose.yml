@@ -7,7 +7,7 @@ services:
     environment:
       - LOG_LEVEL=INFO
       - OCR_DPI=300
-      - MAX_FILE_SIZE_MB=10
+      - MAX_FILE_SIZE_MB=20 # Production limit (configurable)
     volumes:
       - ./ocr-service/src:/app/src:ro
       - ./ocr-service/tests:/app/tests:ro

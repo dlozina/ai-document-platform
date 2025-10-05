@@ -29,7 +29,7 @@ class Settings(BaseSettings):
     enable_language_detection: bool = True  # Enable automatic language detection
 
     # File Processing Settings
-    max_file_size_mb: int = 10
+    max_file_size_mb: int = 20
     supported_image_formats: list = [".png", ".jpg", ".jpeg", ".tiff", ".bmp", ".gif"]
     supported_pdf_format: str = ".pdf"
 

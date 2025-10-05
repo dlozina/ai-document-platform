@@ -147,15 +147,16 @@ async def extract_text(
     if not ocr_processor:
         raise HTTPException(status_code=503, detail="OCR service not initialized")
 
-    # Validate file size (max 10MB for this endpoint)
-    max_size = 10 * 1024 * 1024  # 10MB
+    # Validate file size using configurable setting
+    settings = get_settings()
+    max_size = settings.max_file_size_bytes
     content = await file.read()
     file_size = len(content)
 
     if file_size > max_size:
         raise HTTPException(
             status_code=413,
-            detail=f"File too large. Maximum size: {max_size / 1024 / 1024:.0f}MB",
+            detail=f"File too large. Maximum size: {settings.max_file_size_mb}MB",
         )
 
     if file_size == 0:
