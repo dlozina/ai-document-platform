@@ -28,8 +28,20 @@ docker-compose ps
 - **Prometheus**: http://localhost:9090
 - **Ingestion Service**: http://localhost:8003
 - **Flower (Celery)**: http://localhost:5555 (admin/admin)
+- 
+### 2. Tools Display
 
-### 3. Test Metrics Collection
+#### Flower
+<img width="3411" height="603" alt="Image" src="https://github.com/user-attachments/assets/57f64e28-d7f9-4e4a-8a3d-43f46cb520fe" />
+
+#### Grafana
+
+<img width="3037" height="1174" alt="Image" src="https://github.com/user-attachments/assets/f8cd39cb-a2b1-4189-a142-ca24c60c8eec" />
+
+<img width="3042" height="1197" alt="Image" src="https://github.com/user-attachments/assets/d908abb2-475e-456e-b8b7-1059d94fabf4" />
+
+
+### 4. Test Metrics Collection
 
 ```bash
 # Run the test script
