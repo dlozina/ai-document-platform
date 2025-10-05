@@ -14,7 +14,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 import uvicorn
 
-from .enhanced_embedding_processor import EnhancedEmbeddingProcessor
+from .simplified_embedding_processor import SimplifiedEmbeddingProcessor
 from .config import get_settings
 
 # Configure logging
@@ -25,7 +25,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Global embedding processor instance
-embedding_processor: Optional[EnhancedEmbeddingProcessor] = None
+embedding_processor: Optional[SimplifiedEmbeddingProcessor] = None
 settings = get_settings()
 
 
@@ -34,18 +34,14 @@ async def lifespan(app: FastAPI):
     """Initialize and cleanup resources."""
     global embedding_processor
     
-    logger.info("Starting Embedding Service with chunking...")
-    embedding_processor = EnhancedEmbeddingProcessor(
+    logger.info("Starting Simplified Embedding Service...")
+    embedding_processor = SimplifiedEmbeddingProcessor(
         model_name=settings.embedding_model,
-        qdrant_host=settings.qdrant_host,
-        qdrant_port=settings.qdrant_port,
-        qdrant_api_key=settings.qdrant_api_key,
-        collection_name=settings.qdrant_collection_name,
-        vector_size=settings.qdrant_vector_size,
+        vector_size=settings.embedding_dimension,
         chunk_size=1000,  # 1000 characters per chunk
         chunk_overlap=200  # 200 character overlap
     )
-    logger.info("Embedding Service ready")
+    logger.info("Simplified Embedding Service ready")
     
     yield
     
@@ -111,9 +107,9 @@ app = FastAPI(
 
 
 from .models import (
-    EmbeddingResponse, SearchResponse, HealthResponse, ErrorResponse,
-    EmbeddingRequest, SearchRequest, BatchEmbeddingRequest, BatchEmbeddingResponse,
-    CollectionInfo, AsyncJobResponse, UpdateMetadataRequest
+    EmbeddingResponse, HealthResponse, ErrorResponse,
+    EmbeddingRequest, BatchEmbeddingRequest, BatchEmbeddingResponse,
+    AsyncJobResponse
 )
 
 
@@ -144,17 +140,13 @@ async def health_check():
     try:
         health_status = embedding_processor.health_check()
         
-        overall_status = "healthy" if (
-            health_status["embedding_model_loaded"] and 
-            health_status["qdrant_available"] and 
-            health_status["collection_exists"]
-        ) else "degraded"
+        overall_status = "healthy" if health_status["embedding_model_loaded"] else "degraded"
         
         return HealthResponse(
             status=overall_status,
             service="embedding-service",
             version="1.0.0",
-            qdrant_available=health_status["qdrant_available"],
+            qdrant_available=True,  # No longer relevant
             embedding_model_loaded=health_status["embedding_model_loaded"]
         )
     except Exception as e:
@@ -213,8 +205,8 @@ async def generate_embedding(
             
             # Return info about the first chunk for backward compatibility
             first_chunk = result["chunk_results"][0] if result["chunk_results"] else None
-            embedding = embedding_processor.generate_embedding(request.text[:512])  # Generate embedding for response
-            point_id = first_chunk["point_id"] if first_chunk else None
+            embedding = first_chunk["embedding"] if first_chunk else embedding_processor.generate_embedding(request.text[:512])
+            point_id = first_chunk["chunk_id"] if first_chunk else None
         else:
             # For text-only requests without document_id, use simple embedding
             embedding = embedding_processor.generate_embedding(request.text)
@@ -277,20 +269,6 @@ async def generate_batch_embeddings(
         # Generate embeddings
         embeddings = embedding_processor.generate_batch_embeddings(request.texts)
         
-        # Store in Qdrant if document_ids provided
-        if request.document_ids:
-            for i, (text, embedding, doc_id) in enumerate(zip(request.texts, embeddings, request.document_ids)):
-                metadata = request.metadata[i] if request.metadata and i < len(request.metadata) else {}
-                if tenant_id:
-                    metadata["tenant_id"] = tenant_id
-                
-                embedding_processor.store_embedding(
-                    text=text,
-                    embedding=embedding,
-                    document_id=doc_id,
-                    metadata=metadata
-                )
-        
         processing_time = (time.time() - start_time) * 1000
         
         return BatchEmbeddingResponse(
@@ -308,60 +286,7 @@ async def generate_batch_embeddings(
         )
 
 
-@app.post("/search", response_model=SearchResponse)
-async def search_similar(
-    request: SearchRequest,
-    tenant_id: Optional[str] = Header(None, alias="X-Tenant-ID")
-):
-    """
-    Search for similar embeddings using vector similarity.
-    
-    **Parameters:**
-    - **query**: Search query text (required)
-    - **limit**: Maximum number of results (default: 10)
-    - **score_threshold**: Minimum similarity score (0-1)
-    - **filter**: Optional metadata filter
-    - **X-Tenant-ID**: Tenant identifier (header)
-    
-    **Returns:**
-    - List of similar documents with scores
-    """
-    if not embedding_processor:
-        raise HTTPException(status_code=503, detail="Embedding service not initialized")
-    
-    try:
-        logger.info(f"Searching for similar documents to query (length: {len(request.query)})")
-        
-        start_time = time.time()
-        
-        # Prepare filter conditions
-        filter_conditions = request.filter or {}
-        if tenant_id:
-            filter_conditions["tenant_id"] = tenant_id
-        
-        # Perform chunked search
-        results = embedding_processor.search_similar_chunks(
-            query=request.query,
-            limit=request.limit,
-            score_threshold=request.score_threshold,
-            filter_conditions=filter_conditions if filter_conditions else None
-        )
-        
-        search_time = (time.time() - start_time) * 1000
-        
-        return SearchResponse(
-            query=request.query,
-            results=results,
-            total_results=len(results),
-            search_time_ms=search_time
-        )
-        
-    except Exception as e:
-        logger.error(f"Search error: {e}", exc_info=True)
-        raise HTTPException(
-            status_code=500,
-            detail=f"Search failed: {str(e)}"
-        )
+# Search endpoint removed - vector search is now handled by ingestion service
 
 
 @app.post("/embed-file", response_model=EmbeddingResponse)
@@ -427,87 +352,13 @@ async def embed_file(
         )
 
 
-@app.get("/collection/info", response_model=CollectionInfo)
-async def get_collection_info():
-    """
-    Get information about the Qdrant collection.
-    
-    **Returns:**
-    - Collection metadata and statistics
-    """
-    if not embedding_processor:
-        raise HTTPException(status_code=503, detail="Embedding service not initialized")
-    
-    try:
-        info = embedding_processor.get_collection_info()
-        return CollectionInfo(**info)
-    except Exception as e:
-        logger.error(f"Failed to get collection info: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+# Collection info endpoint removed - Qdrant operations moved to ingestion service
 
 
-@app.delete("/embedding/{point_id}")
-async def delete_embedding(point_id: str):
-    """
-    Delete an embedding from the collection.
-    
-    **Parameters:**
-    - **point_id**: ID of the point to delete
-    
-    **Returns:**
-    - Success confirmation
-    """
-    if not embedding_processor:
-        raise HTTPException(status_code=503, detail="Embedding service not initialized")
-    
-    try:
-        success = embedding_processor.delete_embedding(point_id)
-        if success:
-            return {"message": f"Embedding {point_id} deleted successfully"}
-        else:
-            raise HTTPException(status_code=404, detail=f"Embedding {point_id} not found")
-    except Exception as e:
-        logger.error(f"Failed to delete embedding {point_id}: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+# Delete embedding endpoint removed - Qdrant operations moved to ingestion service
 
 
-@app.put("/update-metadata", response_model=dict)
-async def update_metadata(
-    request: UpdateMetadataRequest,
-    tenant_id: Optional[str] = Header(None, alias="X-Tenant-ID")
-):
-    """
-    Update metadata for an existing embedding in Qdrant.
-    
-    **Parameters:**
-    - **document_id**: Document identifier (required)
-    - **metadata**: Updated metadata dictionary (required)
-    - **X-Tenant-ID**: Tenant identifier (header)
-    
-    **Returns:**
-    - Success confirmation
-    """
-    if not embedding_processor:
-        raise HTTPException(status_code=503, detail="Embedding service not initialized")
-    
-    try:
-        logger.info(f"Updating metadata for document: {request.document_id}")
-        
-        # Add tenant_id to metadata if provided
-        metadata = request.metadata.copy()
-        if tenant_id:
-            metadata["tenant_id"] = tenant_id
-        
-        success = embedding_processor.update_metadata(request.document_id, metadata)
-        
-        if success:
-            return {"message": f"Metadata updated successfully for document {request.document_id}"}
-        else:
-            raise HTTPException(status_code=404, detail=f"Document {request.document_id} not found in Qdrant")
-            
-    except Exception as e:
-        logger.error(f"Failed to update metadata for document {request.document_id}: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+# Update metadata endpoint removed - Qdrant operations moved to ingestion service
 
 
 # Error handlers

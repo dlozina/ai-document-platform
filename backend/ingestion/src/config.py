@@ -63,6 +63,13 @@ class Settings(BaseSettings):
     ner_service_url: str = "http://ner-service:8001"
     embedding_service_url: str = "http://embedding-service:8002"
     
+    # Qdrant Vector Database Settings
+    qdrant_host: str = "qdrant"
+    qdrant_port: int = 6333
+    qdrant_api_key: Optional[str] = None
+    qdrant_collection_name: str = "embeddings"
+    qdrant_vector_size: int = 384
+    
     # Security Settings
     enable_cors: bool = True
     cors_origins: List[str] = ["*"]

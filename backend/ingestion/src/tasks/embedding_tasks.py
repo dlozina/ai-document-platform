@@ -15,6 +15,7 @@ from ..celery_app import celery_app, RETRY_POLICIES
 from ..database import get_db_manager
 from ..models import ProcessingStatus
 from ..config import get_settings
+from ..qdrant_client import get_qdrant_manager
 
 logger = logging.getLogger(__name__)
 
@@ -132,15 +133,69 @@ def process_document_embedding(
         
         embedding_result = asyncio.run(call_embedding_service())
         
+        # Store embeddings in Qdrant
+        try:
+            qdrant_manager = get_qdrant_manager()
+        except RuntimeError as e:
+            if "not initialized" in str(e):
+                logger.warning("Qdrant manager not initialized, attempting to initialize...")
+                from ..qdrant_client import initialize_qdrant_manager
+                initialize_qdrant_manager(
+                    host=settings.qdrant_host,
+                    port=settings.qdrant_port,
+                    api_key=settings.qdrant_api_key,
+                    collection_name=settings.qdrant_collection_name,
+                    vector_size=settings.qdrant_vector_size
+                )
+                qdrant_manager = get_qdrant_manager()
+            else:
+                raise
+        
+        # Prepare metadata for Qdrant
+        qdrant_metadata = {
+            "filename": filename,
+            "content_type": content_type,
+            "file_type": file_type,
+            "file_size_bytes": file_size_bytes,
+            "upload_timestamp": upload_timestamp.isoformat() if upload_timestamp else None,
+            "created_by": created_by,
+            "processing_status": processing_status,
+            "tags": tags or [],
+            "description": description,
+            "ner_entities": ner_entities or []
+        }
+        
+        # Store embeddings in Qdrant
+        if embedding_result.get("chunk_results"):
+            # Store chunked embeddings
+            chunks = embedding_result["chunk_results"]
+            point_ids = qdrant_manager.store_chunked_embeddings(
+                chunks=chunks,
+                document_id=document_id,
+                metadata=qdrant_metadata
+            )
+            logger.info(f"Stored {len(point_ids)} chunked embeddings for document {document_id}")
+        else:
+            # Store single embedding (fallback)
+            embedding = embedding_result.get("embedding", [])
+            if embedding:
+                point_id = qdrant_manager.store_embedding(
+                    text=ocr_text,
+                    embedding=embedding,
+                    document_id=document_id,
+                    metadata=qdrant_metadata
+                )
+                logger.info(f"Stored single embedding for document {document_id}")
+        
         # Update document with embedding results
         with db_manager.get_session() as session:
-            # For chunked documents, we don't store a single embedding vector
-            # Instead, we store metadata about the chunking
+            # Store metadata about the embedding process
             embedding_metadata = {
-                "chunked": True,
+                "chunked": bool(embedding_result.get("chunk_results")),
                 "total_chunks": embedding_result.get("total_chunks", 1),
                 "processing_time_ms": embedding_result.get("processing_time_ms", 0),
-                "method": embedding_result.get("method", "chunked_embedding")
+                "method": embedding_result.get("method", "embedding"),
+                "qdrant_stored": True
             }
             
             db_manager.update_document(session, document_id, {
@@ -151,7 +206,7 @@ def process_document_embedding(
             # Update processing job
             db_manager.update_processing_job(session, task_id, {
                 "status": ProcessingStatus.COMPLETED,
-                "message": f"Embedding completed: {embedding_result.get('total_chunks', 1)} chunks created"
+                "message": f"Embedding completed: {embedding_result.get('total_chunks', 1)} chunks stored in Qdrant"
             })
         
         logger.info(f"Embedding processing completed for document {document_id}")

@@ -18,21 +18,7 @@ class EmbeddingResponse(BaseModel):
     filename: Optional[str] = Field(None, description="Original filename if from file")
 
 
-class SearchResult(BaseModel):
-    """Individual search result."""
-    id: str = Field(..., description="Qdrant point ID (UUID)")
-    score: float = Field(..., description="Similarity score")
-    text: str = Field(..., description="Text content")
-    document_id: Optional[str] = Field(None, description="Original document ID")
-    metadata: Dict[str, Any] = Field(..., description="Additional metadata")
-
-
-class SearchResponse(BaseModel):
-    """Response model for vector search."""
-    query: str = Field(..., description="Search query")
-    results: List[SearchResult] = Field(..., description="Search results with scores")
-    total_results: int = Field(..., description="Total number of results found")
-    search_time_ms: float = Field(..., description="Search time in milliseconds")
+# Search models removed - vector search moved to ingestion service
 
 
 class HealthResponse(BaseModel):
@@ -57,12 +43,7 @@ class EmbeddingRequest(BaseModel):
     metadata: Optional[Dict[str, Any]] = Field(None, description="Additional metadata")
 
 
-class SearchRequest(BaseModel):
-    """Request model for vector search."""
-    query: str = Field(..., description="Search query", min_length=1, max_length=10000)
-    limit: int = Field(10, description="Maximum number of results", ge=1, le=100)
-    score_threshold: Optional[float] = Field(None, description="Minimum similarity score", ge=0.0, le=1.0)
-    filter: Optional[Dict[str, Any]] = Field(None, description="Metadata filter")
+# SearchRequest removed - vector search moved to ingestion service
 
 
 class BatchEmbeddingRequest(BaseModel):
@@ -72,10 +53,7 @@ class BatchEmbeddingRequest(BaseModel):
     metadata: Optional[List[Dict[str, Any]]] = Field(None, description="List of metadata objects")
 
 
-class UpdateMetadataRequest(BaseModel):
-    """Request model for updating Qdrant metadata."""
-    document_id: str = Field(..., description="Document identifier")
-    metadata: Dict[str, Any] = Field(..., description="Updated metadata")
+# UpdateMetadataRequest removed - Qdrant operations moved to ingestion service
 
 
 class BatchEmbeddingResponse(BaseModel):
@@ -86,12 +64,7 @@ class BatchEmbeddingResponse(BaseModel):
     batch_size: int = Field(..., description="Number of texts processed")
 
 
-class CollectionInfo(BaseModel):
-    """Information about a Qdrant collection."""
-    name: str = Field(..., description="Collection name")
-    vector_size: int = Field(..., description="Vector dimension")
-    points_count: int = Field(..., description="Number of points in collection")
-    status: str = Field(..., description="Collection status")
+# CollectionInfo removed - Qdrant operations moved to ingestion service
 
 
 class AsyncJobResponse(BaseModel):

@@ -5,9 +5,12 @@ Production-ready Celery setup with Redis broker, optimized for 60 files/minute p
 """
 
 import os
-from celery import Celery
+import logging
+from celery import Celery, signals
 from kombu import Queue
 from .config import get_settings
+
+logger = logging.getLogger(__name__)
 
 # Get settings
 settings = get_settings()
@@ -214,3 +217,29 @@ else:
 
 # Export the app for use in other modules
 __all__ = ["celery_app", "RETRY_POLICIES", "TASK_PRIORITIES", "MONITORING_CONFIG"]
+
+
+# Worker initialization signal handler
+@signals.worker_init.connect
+def initialize_worker_resources(sender=None, **kwargs):
+    """
+    Initialize resources needed by Celery workers.
+    This is called when workers start up.
+    """
+    try:
+        # Initialize Qdrant manager for workers
+        from .qdrant_client import initialize_qdrant_manager
+        
+        initialize_qdrant_manager(
+            host=settings.qdrant_host,
+            port=settings.qdrant_port,
+            api_key=settings.qdrant_api_key,
+            collection_name=settings.qdrant_collection_name,
+            vector_size=settings.qdrant_vector_size
+        )
+        
+        logger.info("Worker resources initialized successfully")
+        
+    except Exception as e:
+        logger.error(f"Failed to initialize worker resources: {e}")
+        raise

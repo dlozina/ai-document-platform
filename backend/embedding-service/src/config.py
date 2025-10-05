@@ -28,12 +28,7 @@ class Settings(BaseSettings):
     max_text_length: int = 512
     batch_size: int = 32
     
-    # Qdrant Settings
-    qdrant_host: str = "localhost"
-    qdrant_port: int = 6333
-    qdrant_api_key: Optional[str] = None
-    qdrant_collection_name: str = "embeddings"
-    qdrant_vector_size: int = 384
+    # Qdrant settings removed - vector storage moved to ingestion service
     
     # File Processing Settings
     max_file_size_mb: int = 10
@@ -68,11 +63,6 @@ class Settings(BaseSettings):
     def all_supported_formats(self) -> set:
         """Get all supported file formats."""
         return set(self.supported_text_formats + self.supported_document_formats)
-    
-    @property
-    def qdrant_url(self) -> str:
-        """Get Qdrant connection URL."""
-        return f"http://{self.qdrant_host}:{self.qdrant_port}"
 
 
 @lru_cache()

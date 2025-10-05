@@ -29,6 +29,7 @@ from .database import get_db_manager, get_db_session, ProcessingJob
 from .storage import get_minio_manager
 from .celery_app import celery_app
 from .tasks.ocr_tasks import process_document_ocr
+from .qdrant_client import initialize_qdrant_manager
 # Redis client removed - using direct Celery chain approach
 from .utils import (
     FileValidator, TenantQuotaChecker, calculate_file_hash, 
@@ -141,6 +142,19 @@ async def lifespan(app: FastAPI):
         logger.info("Redis/Celery connection successful")
     except Exception as e:
         logger.error(f"Redis/Celery connection failed: {e}")
+    
+    # Initialize Qdrant connection
+    try:
+        initialize_qdrant_manager(
+            host=settings.qdrant_host,
+            port=settings.qdrant_port,
+            api_key=settings.qdrant_api_key,
+            collection_name=settings.qdrant_collection_name,
+            vector_size=settings.qdrant_vector_size
+        )
+        logger.info("Qdrant connection successful")
+    except Exception as e:
+        logger.error(f"Qdrant connection failed: {e}")
     
     logger.info("Ingestion Service ready")
     

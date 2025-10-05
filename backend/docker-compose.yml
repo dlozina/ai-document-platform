@@ -49,12 +49,8 @@ services:
     ports:
       - "8002:8002"
     environment:
-      - QDRANT_HOST=qdrant
-      - QDRANT_PORT=6333
       - EMBEDDING_MODEL=sentence-transformers/all-MiniLM-L6-v2
       - LOG_LEVEL=INFO
-    depends_on:
-      - qdrant
     volumes:
       - ./embedding-service/src:/app/src
     restart: unless-stopped
@@ -173,6 +169,10 @@ services:
       - OCR_SERVICE_URL=http://ocr-service:8000
       - NER_SERVICE_URL=http://ner-service:8001
       - EMBEDDING_SERVICE_URL=http://embedding-service:8002
+      - QDRANT_HOST=qdrant
+      - QDRANT_PORT=6333
+      - QDRANT_COLLECTION_NAME=embeddings
+      - QDRANT_VECTOR_SIZE=384
     volumes:
       - ./ingestion/src:/app/src:ro
       - ./ingestion/tests:/app/tests:ro
@@ -180,6 +180,7 @@ services:
       - postgres
       - minio
       - redis
+      - qdrant
       - ocr-service
       - ner-service
       - embedding-service
@@ -272,12 +273,17 @@ services:
       - OCR_SERVICE_URL=http://ocr-service:8000
       - NER_SERVICE_URL=http://ner-service:8001
       - EMBEDDING_SERVICE_URL=http://embedding-service:8002
+      - QDRANT_HOST=qdrant
+      - QDRANT_PORT=6333
+      - QDRANT_COLLECTION_NAME=embeddings
+      - QDRANT_VECTOR_SIZE=384
     volumes:
       - ./ingestion/src:/app/src:ro
     depends_on:
       - postgres
       - minio
       - redis
+      - qdrant
       - embedding-service
     restart: unless-stopped
     deploy:
