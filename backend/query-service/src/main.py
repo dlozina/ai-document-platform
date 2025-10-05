@@ -250,7 +250,7 @@ async def query_documents(
         elif request.mode == QueryMode.RAG:
             if search_results:
                 # Generate RAG answer (async)
-                answer, confidence_score = await query_processor.generate_rag_answer(
+                answer, confidence_score, truncation_occurred = await query_processor.generate_rag_answer(
                     request.query,
                     search_results,
                     max_context_length=request.max_context_length
@@ -281,13 +281,23 @@ async def query_documents(
         # Format source documents
         sources = []
         for i, result in enumerate(search_results[:5]):  # Limit to top 5 sources
+            # Ensure document_id is a valid UUID or skip this result
+            document_id = result.get("document_id")
+            if not document_id or document_id == "":
+                logger.warning(f"Skipping result with invalid document_id: {document_id}")
+                continue
+                
             sources.append({
-                "document_id": result.get("document_id", ""),
+                "document_id": document_id,
                 "filename": result.get("filename", "Unknown"),
                 "quoted_text": result["text"][:500] + "..." if len(result["text"]) > 500 else result["text"],
                 "relevance_score": result["score"],
                 "page_or_position": f"Result {i+1}",
-                "metadata": result.get("metadata", {})
+                "metadata": result.get("metadata", {}),
+                "chunk_id": result.get("chunk_id"),
+                "chunk_index": result.get("chunk_index"),
+                "total_chunks": result.get("total_chunks"),
+                "is_chunked": result.get("is_chunked")
             })
         
         processing_time = (time.time() - start_time) * 1000
@@ -371,13 +381,23 @@ async def semantic_search(
         # Format results
         formatted_results = []
         for result in results:
+            # Ensure document_id is a valid UUID or skip this result
+            document_id = result.get("document_id")
+            if not document_id or document_id == "":
+                logger.warning(f"Skipping result with invalid document_id: {document_id}")
+                continue
+                
             formatted_results.append({
-                "document_id": result.get("document_id", ""),
+                "document_id": document_id,
                 "filename": result.get("filename", "Unknown"),
                 "quoted_text": result["text"][:500] + "..." if len(result["text"]) > 500 else result["text"],
                 "relevance_score": result["score"],
                 "page_or_position": None,
-                "metadata": result.get("metadata", {})
+                "metadata": result.get("metadata", {}),
+                "chunk_id": result.get("chunk_id"),
+                "chunk_index": result.get("chunk_index"),
+                "total_chunks": result.get("total_chunks"),
+                "is_chunked": result.get("is_chunked")
             })
         
         # Extract entities from query and results for semantic search
@@ -463,7 +483,7 @@ async def question_answering(
         if request.mode == QueryMode.RAG:
             if search_results:
                 # Generate RAG answer (async)
-                answer, confidence_score = await query_processor.generate_rag_answer(
+                answer, confidence_score, truncation_occurred = await query_processor.generate_rag_answer(
                     request.question,
                     search_results,
                     max_context_length=request.max_context_length
@@ -494,13 +514,23 @@ async def question_answering(
         # Format source documents
         sources = []
         for i, result in enumerate(search_results[:3]):  # Limit to top 3 sources for QA
+            # Ensure document_id is a valid UUID or skip this result
+            document_id = result.get("document_id")
+            if not document_id or document_id == "":
+                logger.warning(f"Skipping result with invalid document_id: {document_id}")
+                continue
+                
             sources.append({
-                "document_id": result.get("document_id", ""),
+                "document_id": document_id,
                 "filename": result.get("filename", "Unknown"),
                 "quoted_text": result["text"][:300] + "..." if len(result["text"]) > 300 else result["text"],
                 "relevance_score": result["score"],
                 "page_or_position": f"Source {i+1}",
-                "metadata": result.get("metadata", {})
+                "metadata": result.get("metadata", {}),
+                "chunk_id": result.get("chunk_id"),
+                "chunk_index": result.get("chunk_index"),
+                "total_chunks": result.get("total_chunks"),
+                "is_chunked": result.get("is_chunked")
             })
         
         processing_time = (time.time() - start_time) * 1000

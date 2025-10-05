@@ -109,7 +109,7 @@ app = FastAPI(
 from .models import (
     EmbeddingResponse, HealthResponse, ErrorResponse,
     EmbeddingRequest, BatchEmbeddingRequest, BatchEmbeddingResponse,
-    AsyncJobResponse
+    AsyncJobResponse, ChunkResult
 )
 
 
@@ -203,25 +203,54 @@ async def generate_embedding(
                 metadata=metadata
             )
             
-            # Return info about the first chunk for backward compatibility
+            # Get first chunk for backward compatibility
             first_chunk = result["chunk_results"][0] if result["chunk_results"] else None
             embedding = first_chunk["embedding"] if first_chunk else embedding_processor.generate_embedding(request.text[:512])
-            point_id = first_chunk["chunk_id"] if first_chunk else None
+            
+            # Convert chunk results to ChunkResult models
+            chunk_results = []
+            if result["chunk_results"]:
+                for chunk in result["chunk_results"]:
+                    chunk_results.append(ChunkResult(
+                        chunk_id=chunk["chunk_id"],
+                        text=chunk["text"],
+                        embedding=chunk["embedding"],
+                        chunk_index=chunk["chunk_index"],
+                        start=chunk["start"],
+                        end=chunk["end"],
+                        metadata=chunk["metadata"]
+                    ))
+            
+            return EmbeddingResponse(
+                document_id=request.document_id or document_id,
+                text=request.text,
+                embedding=embedding,
+                embedding_dimension=len(embedding),
+                model_name=settings.embedding_model,
+                processing_time_ms=result.get("processing_time_ms", 0.0),
+                text_length=len(request.text),
+                filename=metadata.get("filename"),
+                total_chunks=result.get("total_chunks"),
+                chunk_results=chunk_results if chunk_results else None,
+                method=result.get("method")
+            )
         else:
             # For text-only requests without document_id, use simple embedding
             embedding = embedding_processor.generate_embedding(request.text)
-            point_id = None
-        
-        return EmbeddingResponse(
-            document_id=request.document_id or document_id,
-            text=request.text,
-            embedding=embedding,
-            embedding_dimension=len(embedding),
-            model_name=settings.embedding_model,
-            processing_time_ms=0.0,  # Will be calculated in processor
-            text_length=len(request.text),
-            filename=None
-        )
+            
+            return EmbeddingResponse(
+                document_id=request.document_id or document_id,
+                text=request.text,
+                embedding=embedding,
+                embedding_dimension=len(embedding),
+                model_name=settings.embedding_model,
+                processing_time_ms=0.0,
+                text_length=len(request.text),
+                filename=None,
+                total_chunks=None,
+                chunk_results=None,
+                method="single_embedding"
+            )
         
     except ValueError as e:
         logger.error(f"Validation error: {e}")

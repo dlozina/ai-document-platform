@@ -233,15 +233,15 @@ class LLMManager:
         self, 
         question: str, 
         context_documents: List[Dict[str, Any]], 
-        max_context_length: int = 4000,
+        max_context_length: int = 8000,  # Increased initial limit
         temperature: float = 0.7,
         max_tokens: int = 1000
-    ) -> tuple[str, float]:
-        """Generate a RAG answer using the LLM."""
+    ) -> tuple[str, float, bool]:  # Added truncation flag
+        """Generate a RAG answer using the LLM with hybrid context management."""
         try:
             from .smart_context import smart_truncate_text, extract_context_around_keywords
             
-            # Prepare context with smart truncation
+            # Prepare context with chunked documents only
             context_texts = []
             for doc in context_documents[:5]:  # Limit to top 5 documents
                 text = doc.get("text", "")
@@ -250,55 +250,88 @@ class LLMManager:
                 chunk_index = doc.get("chunk_index")
                 total_chunks = doc.get("total_chunks", 1)
                 
-                # For chunked documents, use the full chunk text (it's already relevant)
-                if is_chunked:
+                # All documents should be chunked
+                if is_chunked and chunk_index is not None:
                     # Add chunk context information
                     chunk_info = f" (Chunk {chunk_index + 1} of {total_chunks})"
                     context_texts.append(f"Document: {filename}{chunk_info}\n{text}")
                 else:
-                    # For legacy single documents, use smart truncation
-                    if len(text) > 2000:
-                        text = smart_truncate_text(text, 2000, question)
-                    context_texts.append(f"Document: {filename}\n{text}")
+                    # Skip non-chunked documents
+                    logger.warning(f"Skipping non-chunked document: {filename}")
+                    continue
             
             context = "\n\n".join(context_texts)
             
-            # Apply final smart truncation if needed
-            if len(context) > max_context_length:
-                context = smart_truncate_text(context, max_context_length, question)
+            # Try with full context first
+            try:
+                answer, confidence, _ = await self._generate_with_context(
+                    question, context, temperature, max_tokens
+                )
+                return answer, confidence, False  # No truncation
+                
+            except Exception as e:
+                # Check if it's a context length error
+                error_msg = str(e).lower()
+                if any(keyword in error_msg for keyword in ["context", "length", "token", "limit", "too long"]):
+                    logger.warning(f"Context too long, retrying with truncation: {e}")
+                    
+                    # Apply smart truncation
+                    if len(context) > max_context_length:
+                        context = smart_truncate_text(context, max_context_length, question)
+                    
+                    # Retry with truncated context
+                    try:
+                        answer, confidence, _ = await self._generate_with_context(
+                            question, context, temperature, max_tokens
+                        )
+                        return answer, confidence, True  # Truncation occurred
+                    except Exception as retry_e:
+                        logger.error(f"Failed even with truncated context: {retry_e}")
+                        return "I apologize, but I couldn't generate a proper answer due to context limitations.", 0.1, True
+                else:
+                    # Re-raise if it's not a context length error
+                    raise
             
-            # Create messages
-            system_prompt = """You are a helpful AI assistant that answers questions based on the provided documents. 
-            Use only the information from the documents to answer the question. If the documents don't contain 
-            enough information to answer the question, say so clearly. Be concise and accurate."""
-            
-            user_prompt = f"""Based on the following documents, please answer this question: {question}
+        except Exception as e:
+            logger.error(f"LLM generation failed: {e}")
+            return "I apologize, but I couldn't generate a proper answer at this time.", 0.1, False
+    
+    async def _generate_with_context(
+        self, 
+        question: str, 
+        context: str, 
+        temperature: float, 
+        max_tokens: int
+    ) -> tuple[str, float, bool]:
+        """Generate response with given context."""
+        # Create messages
+        system_prompt = """You are a helpful AI assistant that answers questions based on the provided documents. 
+        Use only the information from the documents to answer the question. If the documents don't contain 
+        enough information to answer the question, say so clearly. Be concise and accurate."""
+        
+        user_prompt = f"""Based on the following documents, please answer this question: {question}
 
 Documents:
 {context}
 
 Answer:"""
-            
-            messages = [
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt}
-            ]
-            
-            # Generate response
-            response = await self.client.generate_response(
-                messages,
-                temperature=temperature,
-                max_tokens=max_tokens
-            )
-            
-            # Calculate confidence based on response length and context usage
-            confidence = min(0.9, len(response.content) / 200.0)
-            
-            return response.content, confidence
-            
-        except Exception as e:
-            logger.error(f"LLM generation failed: {e}")
-            return "I apologize, but I couldn't generate a proper answer at this time.", 0.1
+        
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt}
+        ]
+        
+        # Generate response
+        response = await self.client.generate_response(
+            messages,
+            temperature=temperature,
+            max_tokens=max_tokens
+        )
+        
+        # Calculate confidence based on response length and context usage
+        confidence = min(0.9, len(response.content) / 200.0)
+        
+        return response.content, confidence, False  # No truncation occurred
     
     async def close(self):
         """Close the LLM client."""

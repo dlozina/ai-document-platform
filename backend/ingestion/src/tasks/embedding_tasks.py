@@ -153,6 +153,7 @@ def process_document_embedding(
         
         # Prepare metadata for Qdrant
         qdrant_metadata = {
+            "tenant_id": tenant_id,
             "filename": filename,
             "content_type": content_type,
             "file_type": file_type,

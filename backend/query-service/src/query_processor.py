@@ -244,21 +244,21 @@ class QueryProcessor:
                 with_vectors=False
             )
             
-            # Format results with chunk awareness
+            # Format results - only chunked documents are supported
             results = []
             for result in search_results:
-                # Check if this is a chunked result
+                # All documents should be chunked
                 chunk_id = result.payload.get("chunk_id")
                 chunk_index = result.payload.get("chunk_index")
                 total_chunks = result.payload.get("total_chunks")
                 
-                if chunk_id and chunk_index is not None:
+                if chunk_id is not None:
                     # This is a chunked result
                     results.append({
                         "id": result.id,
                         "score": result.score,
                         "text": result.payload.get("text", ""),
-                        "document_id": result.payload.get("original_document_id"),
+                        "document_id": result.payload.get("document_id"),
                         "filename": result.payload.get("filename", ""),
                         "chunk_id": chunk_id,
                         "chunk_index": chunk_index,
@@ -268,20 +268,9 @@ class QueryProcessor:
                         "metadata": result.payload
                     })
                 else:
-                    # This is a legacy single-document result
-                    results.append({
-                        "id": result.id,
-                        "score": result.score,
-                        "text": result.payload.get("text", ""),
-                        "document_id": result.payload.get("original_document_id"),
-                        "filename": result.payload.get("filename", ""),
-                        "chunk_id": None,
-                        "chunk_index": None,
-                        "total_chunks": 1,
-                        "chunk_type": "single",
-                        "is_chunked": False,
-                        "metadata": result.payload
-                    })
+                    # Skip non-chunked documents (legacy support removed)
+                    logger.warning(f"Skipping non-chunked document: {result.payload.get('document_id')}")
+                    continue
             
             return results
             
@@ -614,16 +603,17 @@ class QueryProcessor:
         question: str,
         context_documents: List[Dict[str, Any]],
         max_context_length: Optional[int] = None
-    ) -> Tuple[str, float]:
+    ) -> Tuple[str, float, bool]:
         """Generate answer using RAG (Retrieval-Augmented Generation)."""
         try:
             if not self.llm_manager:
                 logger.warning("LLM manager not available, falling back to template response")
-                return self._generate_fallback_answer(question, context_documents)
+                fallback_answer, fallback_confidence = self._generate_fallback_answer(question, context_documents)
+                return fallback_answer, fallback_confidence, False
             
             # Use the LLM manager to generate the answer
             context_length = max_context_length or self.settings.max_context_length
-            answer, confidence = await self.llm_manager.generate_rag_answer(
+            answer, confidence, truncation_occurred = await self.llm_manager.generate_rag_answer(
                 question=question,
                 context_documents=context_documents,
                 max_context_length=context_length,
@@ -631,11 +621,16 @@ class QueryProcessor:
                 max_tokens=1000
             )
             
-            return answer, confidence
+            # Add truncation note to answer if needed
+            if truncation_occurred:
+                answer += "\n\n*Note: The response was generated using a truncated version of the document due to length limitations.*"
+            
+            return answer, confidence, truncation_occurred
             
         except Exception as e:
             logger.error(f"RAG answer generation failed: {e}")
-            return self._generate_fallback_answer(question, context_documents)
+            fallback_answer, fallback_confidence = self._generate_fallback_answer(question, context_documents)
+            return fallback_answer, fallback_confidence, False
     
     def _generate_fallback_answer(
         self,

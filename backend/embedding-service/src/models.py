@@ -6,16 +6,32 @@ from typing import Optional, List, Dict, Any
 from pydantic import BaseModel, Field
 
 
+class ChunkResult(BaseModel):
+    """Chunk result model."""
+    chunk_id: str = Field(..., description="Unique chunk identifier")
+    text: str = Field(..., description="Chunk text content")
+    embedding: List[float] = Field(..., description="Chunk embedding vector")
+    chunk_index: int = Field(..., description="Chunk index in document")
+    start: int = Field(..., description="Start character position")
+    end: int = Field(..., description="End character position")
+    metadata: Dict[str, Any] = Field(default_factory=dict, description="Chunk metadata")
+
+
 class EmbeddingResponse(BaseModel):
     """Response model for embedding generation."""
     document_id: Optional[str] = Field(None, description="Document identifier")
     text: str = Field(..., description="Input text content")
-    embedding: List[float] = Field(..., description="Generated embedding vector")
+    embedding: List[float] = Field(..., description="Generated embedding vector (first chunk or single)")
     embedding_dimension: int = Field(..., description="Dimension of the embedding vector")
     model_name: str = Field(..., description="Name of the embedding model used")
     processing_time_ms: float = Field(..., description="Processing time in milliseconds")
     text_length: int = Field(..., description="Length of input text")
     filename: Optional[str] = Field(None, description="Original filename if from file")
+    
+    # Chunking information
+    total_chunks: Optional[int] = Field(None, description="Total number of chunks (if chunked)")
+    chunk_results: Optional[List[ChunkResult]] = Field(None, description="All chunk results (if chunked)")
+    method: Optional[str] = Field(None, description="Processing method used")
 
 
 # Search models removed - vector search moved to ingestion service

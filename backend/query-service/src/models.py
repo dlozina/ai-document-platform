@@ -58,13 +58,19 @@ class QueryRequest(BaseModel):
 
 
 class SourceDocument(BaseModel):
-    """Source document in query response."""
+    """Source document in query response - only chunked documents are supported."""
     document_id: UUID4 = Field(..., description="Document identifier")
     filename: str = Field(..., description="Original filename")
     quoted_text: str = Field(..., description="Relevant text excerpt")
     relevance_score: float = Field(..., description="Relevance score")
     page_or_position: Optional[str] = Field(None, description="Page or position information")
     metadata: Dict[str, Any] = Field(default_factory=dict, description="Document metadata")
+    
+    # Chunking information (required for all documents)
+    chunk_id: str = Field(..., description="Chunk identifier")
+    chunk_index: int = Field(..., description="Chunk index in document")
+    total_chunks: int = Field(..., description="Total number of chunks in document")
+    is_chunked: bool = Field(True, description="Whether this is a chunked document (always true)")
 
 
 class DetectedEntity(BaseModel):
