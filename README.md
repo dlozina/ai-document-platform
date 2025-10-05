@@ -58,7 +58,7 @@ Let's say you're hiring for a **Senior Software Engineer** position and have rec
 
 ## Sample Candidate: Dino Lozina
 
-Our test data includes real candidate information. Here are some questions you could ask about Dino's profile and the intelligent answers the system would provide:
+Our test data includes real candidate information from the `test-data/` directory, which contains CVs and video introductions. The entire system has been tested and optimized specifically for this type of HR document data. Here are some questions you could ask about Dino's profile and the intelligent answers the system would provide:
 
 **Technical Skills:**
 - **Question:** "What programming languages does Dino know?"
@@ -85,6 +85,23 @@ Our test data includes real candidate information. Here are some questions you c
 **Comprehensive Profile:**
 - **Question:** "What is Dino's overall technical expertise?"
 - **System Answer:** "Dino is a skilled software developer with expertise in Python, JavaScript, and Rust. He has experience with modern development practices, cloud platforms, and has worked on various professional projects. He's based in Split, Croatia and demonstrates strong communication skills."
+
+## Test Data & System Optimization
+
+The platform comes with comprehensive test data in the `test-data/` directory, including:
+
+- **CVs**: Sample resumes in PDF format from various candidates
+- **Video Introductions**: Video introduction transcripts and content
+- **Real-world Examples**: Actual candidate data (like Dino Lozina's profile) for authentic testing
+
+The entire system has been **tested and optimized** specifically for HR document processing, ensuring:
+- **Accurate text extraction** from PDFs and images
+- **Intelligent entity recognition** for skills, experience, and qualifications
+- **Effective video content processing** for spoken information
+- **Optimized search algorithms** tuned for candidate data patterns
+- **Reliable performance** with real-world document types
+
+This means when you upload similar HR documents, the system will perform at its best, having been thoroughly tested with comparable data.
 
 ## Key Benefits for HR Teams
 

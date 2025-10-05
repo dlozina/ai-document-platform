@@ -4,6 +4,111 @@
 
 The AI Document Platform is a production-ready, multi-tenant document processing system that provides intelligent document ingestion, OCR, Named Entity Recognition (NER), embedding generation, and semantic search capabilities. The system is designed as a microservices architecture with robust processing pipelines, comprehensive monitoring, and scalable infrastructure.
 
+## System Limitations & Constraints
+
+### NOTES
+- Check the [Docker Compose Production](backend/docker-compose.production.yml) file for the latest version of the scaling architecture
+
+### File Size Limits
+- **Maximum file size**: 20 MB per document
+- **Minimum file size**: 10 MB (as per requirements, but system supports smaller files for testing)
+- **Supported formats**: PDF, images (PNG, JPEG), text files
+- **Note**: Smaller files are supported for testing with the provided test data in this repository
+
+### Back-of-the-Envelope Performance Calculations
+
+#### Document Processing Throughput Analysis
+
+**File Size Impact on Processing:**
+- **Minimum file size**: 10 MB per document (production requirement)
+- **Maximum file size**: 20 MB per document (system limit)
+- **Average file size**: 15 MB per document (midpoint for calculations)
+- **Processing time scales with file size**: Larger files take proportionally longer
+
+**Processing Pipeline Bottlenecks:**
+1. **OCR Processing** (Primary Bottleneck)
+   - Processing time: 20-45 seconds per document (scales with file size)
+   - OCR Worker concurrency: 5 per worker
+   - OCR Workers deployed: 2 replicas
+   - **OCR Capacity**: 2 workers × 5 concurrency = 10 documents in parallel
+   - **OCR Throughput**: ~13-30 documents per minute (assuming 20-45s per 15MB doc)
+
+2. **NER Processing** (Secondary Bottleneck)
+   - Processing time: 3-8 seconds per document (scales with extracted text length)
+   - NER Worker concurrency: 3 per worker
+   - NER Workers deployed: 1 replica
+   - **NER Capacity**: 1 worker × 3 concurrency = 3 documents in parallel
+   - **NER Throughput**: ~22-60 documents per minute (assuming 3-8s per doc)
+
+3. **Embedding Generation** (Memory Constrained)
+   - Processing time: 5-12 seconds per document (scales with text chunks)
+   - Embedding Worker concurrency: 2 per worker
+   - Embedding Workers deployed: 1 replica
+   - **Embedding Capacity**: 1 worker × 2 concurrency = 2 documents in parallel
+   - **Embedding Throughput**: ~10-24 documents per minute (assuming 5-12s per doc)
+
+**System-Wide Throughput:**
+- **Theoretical Maximum**: Limited by OCR bottleneck = ~13-30 documents/minute
+- **Realistic Sustained**: ~10-20 documents/minute (accounting for overhead)
+- **Peak Capacity**: ~25 documents/minute (short bursts)
+
+#### Storage Requirements
+
+**Per Document Storage (10-20 MB files):**
+- **Original file**: 10-20 MB (average 15 MB)
+- **OCR text**: ~100-400 KB (scales with document complexity)
+- **NER entities**: ~10-40 KB (scales with text length)
+- **Embeddings**: ~2-4 KB (384 dimensions × 4 bytes × multiple chunks)
+- **Metadata**: ~5-10 KB
+- **Total per document**: ~15-25 MB
+
+**Daily Capacity (Conservative Estimate):**
+- **Documents processed**: 15/minute × 60 × 24 = 21,600 documents/day
+- **Storage growth**: 21,600 × 20 MB average = 432 GB/day
+- **Monthly storage**: ~13 TB/month
+
+#### Resource Utilization
+
+**CPU Requirements:**
+- **OCR Workers**: High CPU usage (image processing)
+- **NER Workers**: Medium CPU usage (NLP processing)
+- **Embedding Workers**: Medium CPU + High Memory usage
+- **Query Service**: Low CPU usage (mostly I/O bound)
+
+**Memory Requirements:**
+- **OCR Service**: ~2-4 GB per worker (Tesseract models)
+- **NER Service**: ~1-2 GB per worker (spaCy models)
+- **Embedding Service**: ~2-3 GB per worker (transformer models)
+- **Query Service**: ~1-2 GB (vector search operations)
+
+**Network Bandwidth:**
+- **File uploads**: 15 docs/min × 15 MB avg = 225 MB/min = 3.75 MB/s
+- **Service communication**: Minimal (mostly metadata)
+- **Vector search**: Low bandwidth (small vectors)
+
+#### Scaling Projections (Based on 10-20 MB Files)
+
+**To achieve 50 documents/minute:**
+- **OCR Workers**: Scale to 3-4 replicas (15-20 concurrent)
+- **NER Workers**: Scale to 2 replicas (6 concurrent)
+- **Embedding Workers**: Scale to 2-3 replicas (4-6 concurrent)
+- **Storage**: ~1.1 TB/day growth (50 docs/min × 20 MB avg)
+- **Infrastructure**: 2-3x current resource requirements
+
+**To achieve 100 documents/minute:**
+- **OCR Workers**: Scale to 6-8 replicas (30-40 concurrent)
+- **NER Workers**: Scale to 3-4 replicas (9-12 concurrent)
+- **Embedding Workers**: Scale to 4-5 replicas (8-10 concurrent)
+- **Storage**: ~2.2 TB/day growth (100 docs/min × 20 MB avg)
+- **Infrastructure**: 4-5x current resource requirements
+
+**To achieve 200 documents/minute:**
+- **OCR Workers**: Scale to 12-15 replicas (60-75 concurrent)
+- **NER Workers**: Scale to 6-8 replicas (18-24 concurrent)
+- **Embedding Workers**: Scale to 8-10 replicas (16-20 concurrent)
+- **Storage**: ~4.4 TB/day growth (200 docs/min × 20 MB avg)
+- **Infrastructure**: 8-10x current resource requirements
+
 ## System Architecture
 
 ```
