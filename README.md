@@ -29,18 +29,18 @@ Traditional hiring processes are **time-consuming and inefficient**:
 ## ⚙️ How This Platform Works
 
 ### 📤 **Step 1: One-Click Document Ingestion**
-Upload CVs, cover letters, video introductions (text transcriptions), and other candidate materials with a single click. Our system automatically:
+Upload CVs, cover letters, video introduction transcripts (saved as PDFs or images), and other candidate materials with a single click. Our system automatically:
 
 ```mermaid
 graph LR
     A[📄 Upload Documents] --> B[🔍 Extract Text]
-    B --> C[🎥 Process Video]
+    B --> C[📝 Process Transcripts]
     C --> D[🏷️ Identify Entities]
     D --> E[🧠 Create Embeddings]
 ```
 
 - ✅ Extracts text from PDFs or images
-- ✅ Processes video content for spoken information  
+- ✅ Processes video introduction transcripts (saved as PDF/image files)  
 - ✅ Identifies key entities (names, skills, experience, education)
 - ✅ Creates searchable embeddings of all content
 
@@ -57,7 +57,7 @@ graph LR
 ### 👤 **Step 3: Comprehensive Candidate Profiles**
 Each candidate gets a **complete digital profile** combining:
 - 📋 CV information
-- 🎬 Video introduction insights  
+- 📝 Video introduction transcript insights  
 - 🛠️ Skills and experience analysis
 - 🎓 Education and certification details
 
@@ -118,7 +118,7 @@ Let's say you're hiring for a **Senior Software Engineer** position and have rec
 
 > **❓ Question:** *"Where is Dino based?"*
 > 
-> **🤖 AI Answer:** *"Dino is based in Split, Croatia. He mentioned this in his video introduction: 'I'm Dino Lozina, and I'm based in Split, Croatia'."*
+> **🤖 AI Answer:** *"Dino is based in Split, Croatia. He mentioned this in his video introduction transcript: 'I'm Dino Lozina, and I'm based in Split, Croatia'."*
 
 ---
 
@@ -126,7 +126,7 @@ Let's say you're hiring for a **Senior Software Engineer** position and have rec
 
 > **❓ Question:** *"How does Dino present himself in video introductions?"*
 > 
-> **🤖 AI Answer:** *"Dino presents himself professionally in his video introduction, clearly stating his name and location. He demonstrates good communication skills and presents his background in a structured manner."*
+> **🤖 AI Answer:** *"Dino presents himself professionally in his video introduction transcript, clearly stating his name and location. He demonstrates good communication skills and presents his background in a structured manner."*
 
 ---
 
@@ -147,7 +147,7 @@ The platform comes with **comprehensive test data** in the `test-data/` director
 | Data Type | Description | Count |
 |-----------|-------------|-------|
 | 📄 **CVs** | Sample resumes in PDF format from various candidates | 12+ |
-| 🎬 **Video Introductions** | Video introduction transcripts and content | 12+ |
+| 📝 **Video Introduction Transcripts** | Video introduction transcripts saved as PDF/image files | 12+ |
 | 🎯 **Real-world Examples** | Actual candidate data (like Dino Lozina's profile) | ✅ |
 
 ### 🔧 **System Optimization Features**
@@ -156,7 +156,7 @@ The entire system has been **tested and optimized** specifically for HR document
 
 - ✅ **Accurate text extraction** from PDFs and images
 - ✅ **Intelligent entity recognition** for skills, experience, and qualifications  
-- ✅ **Effective video content processing** for spoken information
+- ✅ **Effective transcript processing** for video introduction content
 - ✅ **Optimized search algorithms** tuned for candidate data patterns
 - ✅ **Reliable performance** with real-world document types
 
@@ -189,7 +189,7 @@ The entire system has been **tested and optimized** specifically for HR document
 ### 🔍 **Intelligent Search**
 - 💬 Find candidates using natural language queries
 - 💎 Discover hidden gems you might have missed
-- 📄 Search across all document types (CVs, videos, cover letters)
+- 📄 Search across all document types (CVs, video transcripts, cover letters)
 
 ## 🎯 **Perfect For**
 
@@ -214,7 +214,7 @@ The entire system has been **tested and optimized** specifically for HR document
 > Perfect for **tight deadlines** where speed and accuracy are both essential.
 
 ### 🏠 **Remote Hiring**
-> Great for **remote positions** where video introductions are common and need analysis.
+> Great for **remote positions** where video introduction transcripts are common and need analysis.
 
 ## 🚀 **Getting Started**
 
