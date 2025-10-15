@@ -2,9 +2,9 @@
 
 > **Transform your hiring process with intelligent document analysis and candidate search capabilities.**
 
-[![Platform Status](https://img.shields.io/badge/Status-Production%20Ready-brightgreen)](https://github.com/your-repo)
-[![AI Powered](https://img.shields.io/badge/AI-Powered-blue)](https://github.com/your-repo)
-[![Document Processing](https://img.shields.io/badge/Document-Processing-orange)](https://github.com/your-repo)
+[![Platform Status](https://img.shields.io/badge/Status-Production%20Ready-brightgreen)](https://github.com/dlozina/ai-document-platform)
+[![AI Powered](https://img.shields.io/badge/AI-Powered-blue)](https://github.com/dlozina/ai-document-platform)
+[![Document Processing](https://img.shields.io/badge/Document-Processing-orange)](https://github.com/dlozina/ai-document-platform)
 
 ## 🎯 What is this platform?
 
