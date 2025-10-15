@@ -236,7 +236,7 @@ The entire system has been **tested and optimized** specifically for HR document
 
 ### ⭐ **Star this repository if you find it helpful!**
 
-[![GitHub stars](https://img.shields.io/github/stars/your-username/your-repo?style=social)](https://github.com/your-username/your-repo)
-[![GitHub forks](https://img.shields.io/github/forks/your-username/your-repo?style=social)](https://github.com/your-username/your-repo)
+[![GitHub stars](https://img.shields.io/github/stars/dlozina/ai-document-platform?style=social)](https://github.com/dlozina/ai-document-platform)
+[![GitHub forks](https://img.shields.io/github/forks/dlozina/ai-document-platform?style=social)](https://github.com/dlozina/ai-document-platform)
 
 </div>
